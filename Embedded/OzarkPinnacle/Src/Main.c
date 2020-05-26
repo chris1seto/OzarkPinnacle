@@ -1,5 +1,5 @@
 /*
-  OZARK SPRING
+  OZARK PINNACLE
     -- A Simple APRS encoder
     -- Chris Seto, 2018
 
@@ -17,6 +17,7 @@
 */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stm32f4xx_hal.h>
 #include "FreeRTOS.h"
 #include "task.h"
@@ -140,13 +141,14 @@ int main(void)
   vTaskStartScheduler();
 
   // Do nothing
-  while(1);
+  printf("Warning: vTaskStartScheduler returned\r\n");
+  while(true);
 }
 
 // System Idle task
 void SystemIdle(void * pvParameters)
 {
-  while (1)
+  while (true)
   {
     // Feed watchdog
     WatchdogFeed();

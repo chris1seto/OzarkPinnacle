@@ -1,7 +1,7 @@
 #ifndef AFSKDEFS_H
 #define AFSKDEFS_H
 /*
-  AFSK settings and constants 
+  AFSK settings and constants
 
   The following sample rates are known good:
     //#define SAMPLE_FREQ    42000.0
@@ -21,8 +21,8 @@
 #define SPACE_TONE    2200.0
 #define SAMPLE_FREQ    12000.0
 
-// Bit stuffing 
-#define STUFFING_LENGTH    5
+// Bit stuffing
+#define STUFFING_SIZE    5
 
 // Do not edit below
 

@@ -51,12 +51,12 @@ static void AprsMakePositionCoordinates(uint8_t* buffer, const AprsPositionT* po
 
 // APRS101, Page 32
 // 7 bytes
-static void AprsMakeTimeHms(uint8_t* buffer, const uint32_t timestamp)
+static void AprsMakeTimeHms(uint8_t* buffer, const time_t timestamp)
 {
   struct tm* timeStruct;
 
   // Extract timestamp
-  timeStruct = gmtime((long*)&timestamp);
+  timeStruct = gmtime(&timestamp);
 
   // Check if we got a valid time back
   if (timeStruct == NULL)
@@ -84,7 +84,7 @@ const uint32_t AprsMakePosition(uint8_t* buffer, const AprsPositionReportT* repo
   }
   else
   {
-    AprsMakeTimeHms(buffer + bufferPtr, report->Timestamp);
+    AprsMakeTimeHms(buffer + bufferPtr, (time_t)report->Timestamp);
   }
   bufferPtr += 7;
 
