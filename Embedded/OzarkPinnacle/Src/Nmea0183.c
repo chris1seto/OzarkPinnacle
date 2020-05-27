@@ -5,74 +5,74 @@
   Resources
     * http://www.gpsinformation.org/dale/nmea.htm
 */
-
-#include <stm32f4xx_hal.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stm32f4xx_hal.h>
 #include "Queuex.h"
 #include "Helpers.h"
 #include "TokenIterate.h"
 #include "Nmea0183.h"
 
 // Sentence processors
-static void ParseGsa(const uint32_t length);
-static void ParseGga(const uint32_t length);
-static void ParseRmc(const uint32_t length);
-static void ParseZda(const uint32_t length);
-static void ProcessSentence(const uint32_t length);
+static void ParseGsa(const uint32_t size);
+static void Parsegga(const uint32_t size);
+static void ParseRmc(const uint32_t size);
+static void ParseZda(const uint32_t size);
+static void ProcessSentence(const uint32_t size);
 
 // Packet extractors
-static uint8_t ExtractTime(TokenIterateT* t, NmeaTimeT* time);
-static uint8_t ExtractDate(TokenIterateT* t, NmeaDateT* date);
-static uint8_t ExtractPosition(TokenIterateT* t, NmeaPositionT* pos);
+static uint8_t ExtractTime(TokenIterateT* t, NmeaTime_t* time);
+static uint8_t ExtractDate(TokenIterateT* t, NmeaDate_t* date);
+static uint8_t ExtractPosition(TokenIterateT* t, NmeaPosition_t* pos);
 static uint8_t ExtractChar(TokenIterateT* t, uint8_t* c);
 static uint8_t ExtractFloat(TokenIterateT* t, float* x);
 static uint8_t ExtractInt(TokenIterateT* t, int32_t* x);
 
 typedef struct
 {
-  enum NMEA_MESSAGE_TYPE Type;
-  char Header[5];
-  void(*Processor)(const uint32_t);
-  TickType_t LastMsgTime;
-} NmeaProcessorT;
+  enum NMEA_MESSAGE_TYPE type;
+  char header[5];
+  void(*processor)(const uint32_t);
+  TickType_t last_message_time;
+} NmeaProcessor_t;
 
 // Task
 static void Nmea0183Task(void * pvParameters);
-static TaskHandle_t idleTaskHandle = NULL;
 
 // Serial DMA buffer
 #define DMA_BUFFER_SIZE      1000
-static uint8_t dmaBuffer[DMA_BUFFER_SIZE];
-static volatile uint32_t dmaHead = 0;
+static uint8_t dma_buffer[DMA_BUFFER_SIZE];
+static volatile uint32_t dma_header = 0;
 
 // Nmea data queue
 #define NMEA_BUFFER_SIZE    1000
-static uint8_t nmeaBuffer[NMEA_BUFFER_SIZE];
-static struct QueueT nmeaQueue;
+static uint8_t nmea_buffer[NMEA_BUFFER_SIZE];
+static struct QueueT nmea_queue;
 
 // Message output queue
-static QueueHandle_t NmeaMessageQueue;
+static QueueHandle_t nmea_message_queue;
 
 #define NMEA_PACKET_BUFFER_SIZE  100
-static uint8_t packetBuffer[NMEA_PACKET_BUFFER_SIZE];
+static uint8_t packet_buffer[NMEA_PACKET_BUFFER_SIZE];
 
 #define PARSE_STATE_HEADER    0
 #define PARSE_STATE_PAYLOAD    1
 #define PARSE_STATE_CHECKSUM0  2
 #define PARSE_STATE_CHECKSUM1  3
-static uint32_t parserState = PARSE_STATE_HEADER;
+static uint32_t parser_state = PARSE_STATE_HEADER;
 
 // NMEA processors
 #define NMEA_PROCESSOR_COUNT  4
-static NmeaProcessorT processors[NMEA_PROCESSOR_COUNT] = {
-  { NMEA_MESSAGE_TYPE_GSA, "GNGSA", ParseGsa, 0 },
-  { NMEA_MESSAGE_TYPE_GGA, "GNGGA", ParseGga, 0 },
-  { NMEA_MESSAGE_TYPE_RMC, "GNRMC", ParseRmc, 0 },
-  { NMEA_MESSAGE_TYPE_ZDA, "GNZDA", ParseZda, 0 }
+static NmeaProcessor_t processors[NMEA_PROCESSOR_COUNT] =
+{
+  {NMEA_MESSAGE_TYPE_GSA, "GNGSA", ParseGsa, 0},
+  {NMEA_MESSAGE_TYPE_GGA, "GNGGA", Parsegga, 0},
+  {NMEA_MESSAGE_TYPE_RMC, "GNRMC", ParseRmc, 0},
+  {NMEA_MESSAGE_TYPE_ZDA, "GNZDA", ParseZda, 0}
 };
 
 // Peripheral handles
-static UART_HandleTypeDef UartHandle;
+static UART_HandleTypeDef uart_handle;
 static DMA_HandleTypeDef hdma_rx;
 
 static void InitUart(void)
@@ -94,16 +94,16 @@ static void InitUart(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
   
   // Configure the USART peripheral
-  UartHandle.Instance          = USART3;
-  UartHandle.Init.BaudRate     = 9600;
-  UartHandle.Init.WordLength   = UART_WORDLENGTH_8B;
-  UartHandle.Init.StopBits     = UART_STOPBITS_1;
-  UartHandle.Init.Parity       = UART_PARITY_NONE;
-  UartHandle.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
-  UartHandle.Init.Mode         = UART_MODE_RX | UART_MODE_TX;
+  uart_handle.Instance          = USART3;
+  uart_handle.Init.BaudRate     = 9600;
+  uart_handle.Init.WordLength   = UART_WORDLENGTH_8B;
+  uart_handle.Init.StopBits     = UART_STOPBITS_1;
+  uart_handle.Init.Parity       = UART_PARITY_NONE;
+  uart_handle.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
+  uart_handle.Init.Mode         = UART_MODE_RX | UART_MODE_TX;
 
   // Commit the USART
-  HAL_UART_Init(&UartHandle);
+  HAL_UART_Init(&uart_handle);
 
   // DMA USART3
   // RX: (DMA1, Stream 1, channel 4)
@@ -126,28 +126,28 @@ static void InitUart(void)
   HAL_DMA_Init(&hdma_rx);
 
   // Link DMA
-  __HAL_LINKDMA(&UartHandle, hdmarx, hdma_rx);
+  __HAL_LINKDMA(&uart_handle, hdmarx, hdma_rx);
 
   // Start DMA
-  HAL_UART_Receive_DMA(&UartHandle, (uint8_t*)&dmaBuffer, DMA_BUFFER_SIZE);
+  HAL_UART_Receive_DMA(&uart_handle, (uint8_t*)&dma_buffer, DMA_BUFFER_SIZE);
 }
 
-UART_HandleTypeDef* Nmea0183GetUartHandle(void)
+UART_HandleTypeDef* Nmea0183_GetUartHandle(void)
 {
-  return &UartHandle;
+  return &uart_handle;
 }
 
-uint8_t Nmea0183Init(void)
+uint8_t Nmea0183_Init(void)
 {
   // Init RTOS queue
-  NmeaMessageQueue = xQueueCreate(10, sizeof(GenericNmeaMessageT));
+  nmea_message_queue = xQueueCreate(10, sizeof(GenericNmeaMessage_t));
 
-  if (NmeaMessageQueue == NULL)
+  if (nmea_message_queue == NULL)
   {
     return 0;
   }
 
-  QueueInit(&nmeaQueue, nmeaBuffer, NMEA_BUFFER_SIZE);
+  QueueInit(&nmea_queue, nmea_buffer, NMEA_BUFFER_SIZE);
 
   // Start serial port
   InitUart();
@@ -155,7 +155,7 @@ uint8_t Nmea0183Init(void)
   return 1;
 }
 
-void Nmea0183StartParser(void)
+void Nmea0183_StartParser(void)
 {
   // Start Task
   xTaskCreate(Nmea0183Task,
@@ -163,16 +163,16 @@ void Nmea0183StartParser(void)
     256,
     NULL,
     6,
-    &idleTaskHandle);
+    NULL);
 }
 
 // Verify a packet checksum
-static uint8_t VerifyChecksum(const uint8_t x, const uint8_t* buffer, const uint32_t length)
+static uint8_t VerifyChecksum(const uint8_t x, const uint8_t* buffer, const uint32_t size)
 {
   uint8_t checksum = 0;
   uint32_t i = 0;
 
-  for (i = 0; i < length; i++)
+  for (i = 0; i < size; i++)
   {
     checksum ^= buffer[i];
   }
@@ -189,29 +189,29 @@ static void CopyFromDma(void)
 
   // If there is nothing to copy
   // If you let the buffer loop back, you will lose the entire buffer
-  if (endIndex == dmaHead)
+  if (endIndex == dma_header)
   {
     return;
   }
 
   // Check if the buffer looped over
-  if (endIndex < dmaHead)
+  if (endIndex < dma_header)
   {
     // Copy from the end of the dma buffer
-    QueueAppendBuffer(&nmeaQueue, dmaBuffer + dmaHead, DMA_BUFFER_SIZE - dmaHead);
+    QueueAppendBuffer(&nmea_queue, dma_buffer + dma_header, DMA_BUFFER_SIZE - dma_header);
 
     // It has. We need to copy from the end of the circ buffer, then again from the start
     // Copy from the start of the dma buffer
-    QueueAppendBuffer(&nmeaQueue, dmaBuffer, endIndex);
+    QueueAppendBuffer(&nmea_queue, dma_buffer, endIndex);
   }
   else
   {
-    // Copy from the dmaHead to the endindex
-    QueueAppendBuffer(&nmeaQueue, dmaBuffer + dmaHead, endIndex - dmaHead);
+    // Copy from the dma_header to the endindex
+    QueueAppendBuffer(&nmea_queue, dma_buffer + dma_header, endIndex - dma_header);
   }
 
   // Relocate the DMA head to the end of where we just read
-  dmaHead = endIndex;
+  dma_header = endIndex;
 }
 
 // Parse NMEA
@@ -224,7 +224,7 @@ static void Nmea0183Task(void * pvParameters)
   TickType_t xLastNmeaTime = 0;
 
   // Parse NMEA
-  while (1)
+  while (true)
   {
     // Block until it's time to start
     vTaskDelayUntil(&xLastNmeaTime, 10);
@@ -233,23 +233,23 @@ static void Nmea0183Task(void * pvParameters)
     CopyFromDma();
 
     // While there is data in the queue
-    while (parsePtr < QueueCount(&nmeaQueue))
+    while (parsePtr < QueueCount(&nmea_queue))
     {
       // Get the current ptr
-      workingByte = QueuePeek(&nmeaQueue, parsePtr++);
+      workingByte = QueuePeek(&nmea_queue, parsePtr++);
 
       // State machine parser
-      switch(parserState)
+      switch(parser_state)
       {
         // Look for and consume header byte $
         case PARSE_STATE_HEADER:
           if (workingByte == '$')
           {
-            parserState = PARSE_STATE_PAYLOAD;
+            parser_state = PARSE_STATE_PAYLOAD;
           }
 
           // Dequeue whatever we get at this point, header or not
-          QueueDequeqe(&nmeaQueue, 1);
+          QueueDequeqe(&nmea_queue, 1);
           parsePtr = 0;
           bufferPtr = 0;
           break;
@@ -258,11 +258,11 @@ static void Nmea0183Task(void * pvParameters)
         case PARSE_STATE_PAYLOAD:
           if (workingByte == '*')
           {
-            parserState = PARSE_STATE_CHECKSUM0;
+            parser_state = PARSE_STATE_CHECKSUM0;
           }
           else
           {
-            packetBuffer[bufferPtr++] = workingByte;
+            packet_buffer[bufferPtr++] = workingByte;
           }
           break;
 
@@ -273,7 +273,7 @@ static void Nmea0183Task(void * pvParameters)
           frameChecksum = (Hex2int(workingByte) << 4);
 
           // Move on
-          parserState = PARSE_STATE_CHECKSUM1;
+          parser_state = PARSE_STATE_CHECKSUM1;
           break;
 
         // Second checksum byte
@@ -282,10 +282,10 @@ static void Nmea0183Task(void * pvParameters)
           frameChecksum |= Hex2int(workingByte);
 
           // Attempt to verify the checksum
-          if (VerifyChecksum(frameChecksum, packetBuffer, bufferPtr))
+          if (VerifyChecksum(frameChecksum, packet_buffer, bufferPtr))
           {
             // Dequeue the entire packet if success
-            QueueDequeqe(&nmeaQueue, parsePtr);
+            QueueDequeqe(&nmea_queue, parsePtr);
             parsePtr = 0;
 
             // Process sentence
@@ -293,7 +293,7 @@ static void Nmea0183Task(void * pvParameters)
           }
 
           // Reset
-          parserState = PARSE_STATE_HEADER;
+          parser_state = PARSE_STATE_HEADER;
           break;
       }
     }
@@ -315,7 +315,7 @@ static uint8_t MatchUpTo(const uint8_t* x, const uint8_t* y, const uint32_t len)
   return 1;
 }
 
-static void ProcessSentence(const uint32_t length)
+static void ProcessSentence(const uint32_t size)
 {
   uint32_t i;
 
@@ -323,13 +323,13 @@ static void ProcessSentence(const uint32_t length)
   for (i = 0; i < NMEA_PROCESSOR_COUNT; i++)
   {
     // Check if we have a match
-    if (MatchUpTo((uint8_t*)processors[i].Header, packetBuffer, 5))
+    if (MatchUpTo((uint8_t*)processors[i].header, packet_buffer, 5))
     {
       // Call the processor
-      processors[i].Processor(length);
+      processors[i].processor(size);
 
       // Set the last update time
-      processors[i].LastMsgTime = xTaskGetTickCount();
+      processors[i].last_message_time = xTaskGetTickCount();
 
       return;
     }
@@ -337,74 +337,74 @@ static void ProcessSentence(const uint32_t length)
 }
 
 // Extract time
-static uint8_t ExtractTime(TokenIterateT* t, NmeaTimeT* time)
+static uint8_t ExtractTime(TokenIterateT* t, NmeaTime_t* time)
 {
   uint8_t* token;
-  uint32_t tokenLength;
+  uint32_t token_size;
 
   // Get the token
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if (tokenLength < 6)
+  // Check size
+  if (token_size < 6)
   {
     return 0;
   }
 
   // Hour
-  time->Hour = atoil(token + 0, 2);
+  time->hour = atoil(token + 0, 2);
 
   // Minute
-  time->Minute = atoil(token + 2, 2);
+  time->minute = atoil(token + 2, 2);
 
   // Second (might be a float)
-  time->Second = atofl(token + 4, tokenLength - 4);
+  time->second = atofl(token + 4, token_size - 4);
 
   return 1;
 }
 
 // Extract date
-static uint8_t ExtractDate(TokenIterateT* t, NmeaDateT* date)
+static uint8_t ExtractDate(TokenIterateT* t, NmeaDate_t* date)
 {
   uint8_t* token;
-  uint32_t tokenLength;
+  uint32_t token_size;
 
   // Get the token
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if(tokenLength < 6)
+  // Check size
+  if(token_size < 6)
   {
     return 0;
   }
 
   // Day
-  date->Day = atoil(token + 0, 2);
+  date->day = atoil(token + 0, 2);
 
   // Month
-  date->Month = atoil(token + 2, 2);
+  date->month = atoil(token + 2, 2);
 
-  // Year
-  date->Year = atofl(token + 4, tokenLength - 4);
+  // year
+  date->year = atofl(token + 4, token_size - 4);
 
   return 1;
 }
 
 // Extract position
-static uint8_t ExtractPosition(TokenIterateT* t, NmeaPositionT* pos)
+static uint8_t ExtractPosition(TokenIterateT* t, NmeaPosition_t* pos)
 {
   uint8_t* token;
-  uint32_t tokenLength;
+  uint32_t token_size;
   
   int deg = 0;
   float min = 0;
   uint8_t dir = '-';
 
   // Get the token for lat
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if (tokenLength < 4)
+  // Check size
+  if (token_size < 4)
   {
     return 0;
   }
@@ -413,7 +413,7 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPositionT* pos)
   deg = atoil(token, 2);
 
   // Get minutes
-  min = atofl(token + 2, tokenLength - 2);
+  min = atofl(token + 2, token_size - 2);
 
   // Get direction
   if (!ExtractChar(t, &dir))
@@ -421,13 +421,13 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPositionT* pos)
     return 0;
   }
 
-  pos->Lat = (deg + (min / 60.0)) * ((dir == 'N') ? 1 : -1);
+  pos->lat = (deg + (min / 60.0)) * ((dir == 'N') ? 1 : -1);
   
   // Get the token for lon
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if (tokenLength < 4)
+  // Check size
+  if (token_size < 4)
   {
     return 0;
   }
@@ -436,7 +436,7 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPositionT* pos)
   deg = atoil(token, 3);
 
   // Get minutes
-  min = atofl(token + 2, tokenLength - 3);
+  min = atofl(token + 2, token_size - 3);
 
   // Get direction
   if (!ExtractChar(t, &dir))
@@ -444,7 +444,7 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPositionT* pos)
     return 0;
   }
 
-  pos->Lon = (deg + (min / 60.0)) * ((dir == 'E') ? 1 : -1);
+  pos->lon = (deg + (min / 60.0)) * ((dir == 'E') ? 1 : -1);
   
   return 1;
 }
@@ -454,13 +454,13 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPositionT* pos)
 static uint8_t ExtractChar(TokenIterateT* t, uint8_t* c)
 {
   uint8_t* token;
-  uint32_t tokenLength;
+  uint32_t token_size;
 
   // Get the token
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if (tokenLength != 1)
+  // Check size
+  if (token_size != 1)
   {
     *c = 0;
     return 0;
@@ -475,19 +475,19 @@ static uint8_t ExtractChar(TokenIterateT* t, uint8_t* c)
 static uint8_t ExtractFloat(TokenIterateT* t, float* x)
 {
   uint8_t* token;
-  uint32_t tokenLength;
+  uint32_t token_size;
 
   // Get the token
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if (tokenLength == 0)
+  // Check size
+  if (token_size == 0)
   {
     *x = 0;
     return 0;
   }
 
-  *x = atofl(token, tokenLength);
+  *x = atofl(token, token_size);
 
   return 1;
 }
@@ -496,19 +496,19 @@ static uint8_t ExtractFloat(TokenIterateT* t, float* x)
 static uint8_t ExtractInt(TokenIterateT* t, int32_t* x)
 {
   uint8_t* token;
-  uint32_t tokenLength;
+  uint32_t token_size;
 
   // Get the token
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if (tokenLength == 0)
+  // Check size
+  if (token_size == 0)
   {
     *x = 0;
     return 0;
   }
 
-  *x = atoil(token, tokenLength);
+  *x = atoil(token, token_size);
 
   return 1;
 }
@@ -517,26 +517,26 @@ static uint8_t ExtractInt(TokenIterateT* t, int32_t* x)
 static uint8_t ExtractByteInt(TokenIterateT* t, int8_t* x)
 {
   uint8_t* token;
-  uint32_t tokenLength;
+  uint32_t token_size;
 
   // Get the token
-  TokenIteratorForward(t, &token, &tokenLength);
+  TokenIteratorForward(t, &token, &token_size);
 
-  // Check length
-  if(tokenLength == 0)
+  // Check size
+  if (token_size == 0)
   {
     *x = 0;
     return 0;
   }
 
-  *x = atoil(token, tokenLength);
+  *x = atoil(token, token_size);
 
   return 1;
 }
 
 //// Sentence Parsers ////
 
-static void ParseGsa(const uint32_t length)
+static void ParseGsa(const uint32_t size)
 {
   /*
     $GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1*39
@@ -556,7 +556,7 @@ static void ParseGsa(const uint32_t length)
   */
 }
 
-static void ParseRmc(const uint32_t length)
+static void ParseRmc(const uint32_t size)
 {
   /*
   $GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A
@@ -565,8 +565,8 @@ static void ParseRmc(const uint32_t length)
      RMC          Recommended Minimum sentence C
      123519       Fix taken at 12:35:19 UTC
      A            Status A=active or V=Void.
-     4807.038,N   Latitude 48 deg 07.038' N
-     01131.000,E  Longitude 11 deg 31.000' E
+     4807.038,N   latitude 48 deg 07.038' N
+     01131.000,E  longitude 11 deg 31.000' E
      022.4        Speed over the ground in knots
      084.4        Track angle in degrees True
      230394       Date - 23rd of March 1994
@@ -575,34 +575,34 @@ static void ParseRmc(const uint32_t length)
 
   */
 
-  GenericNmeaMessageT msg;
-  msg.MessageType = NMEA_MESSAGE_TYPE_RMC;
+  GenericNmeaMessage_t msg;
+  msg.message_type = NMEA_MESSAGE_TYPE_RMC;
   TokenIterateT t;
-  TokenIteratorInit(&t, ',', packetBuffer + 6, length - 6);
+  TokenIteratorInit(&t, ',', packet_buffer + 6, size - 6);
 
   // Time
-  ExtractTime(&t, &msg.Rmc.Time);
+  ExtractTime(&t, &msg.rmc.time);
 
   // Fix
-  ExtractChar(&t, &msg.Rmc.Fix);
+  ExtractChar(&t, &msg.rmc.fix);
 
   // Position
-  ExtractPosition(&t, &msg.Rmc.Position);
+  ExtractPosition(&t, &msg.rmc.position);
 
   // Speed
-  ExtractFloat(&t, &msg.Rmc.Speed);
+  ExtractFloat(&t, &msg.rmc.speed);
 
   // Track
-  ExtractFloat(&t, &msg.Rmc.Track);
+  ExtractFloat(&t, &msg.rmc.track);
 
   // Date
-  ExtractDate(&t, &msg.Rmc.Date);
+  ExtractDate(&t, &msg.rmc.date);
   
   // Try to queue it
-  xQueueSendToBack(NmeaMessageQueue, &msg, 0);
+  xQueueSendToBack(nmea_message_queue, &msg, 0);
 }
 
-static void ParseGga(const uint32_t length)
+static void Parsegga(const uint32_t size)
 {
   /*
     $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47
@@ -610,8 +610,8 @@ static void ParseGga(const uint32_t length)
     Where:
       GGA          Global Positioning System Fix Data
       123519       Fix taken at 12:35:19 UTC
-      4807.038,N   Latitude 48 deg 07.038' N
-      01131.000,E  Longitude 11 deg 31.000' E
+      4807.038,N   latitude 48 deg 07.038' N
+      01131.000,E  longitude 11 deg 31.000' E
       1            Fix quality: 0 = invalid
                   1 = GPS fix (SPS)
                   2 = DGPS fix
@@ -631,74 +631,74 @@ static void ParseGga(const uint32_t length)
       *47          the checksum data, always begins with *
   */
 
-  GenericNmeaMessageT msg;
-  msg.MessageType = NMEA_MESSAGE_TYPE_GGA;
+  GenericNmeaMessage_t msg;
+  msg.message_type = NMEA_MESSAGE_TYPE_GGA;
   TokenIterateT t;
-  TokenIteratorInit(&t, ',', packetBuffer + 6, length - 6);
+  TokenIteratorInit(&t, ',', packet_buffer + 6, size - 6);
 
   // Time
-  ExtractTime(&t, &msg.Gga.Time);
+  ExtractTime(&t, &msg.gga.time);
 
   // Position
-  ExtractPosition(&t, &msg.Gga.Position);
+  ExtractPosition(&t, &msg.gga.position);
 
   // Fix
-  ExtractChar(&t, &msg.Gga.Fix);
+  ExtractChar(&t, &msg.gga.fix);
 
   // Sats tracked
-  ExtractInt(&t, &msg.Gga.SatCount);
+  ExtractInt(&t, &msg.gga.sat_count);
 
   // HDOP
-  ExtractFloat(&t, &msg.Gga.Altitude);
+  ExtractFloat(&t, &msg.gga.h_dop);
 
   // Altitude
-  ExtractFloat(&t, &msg.Gga.Altitude);
+  ExtractFloat(&t, &msg.gga.altitude);
 
   // Altitude units
-  ExtractChar(&t, &msg.Gga.AltitudeUnits);
+  ExtractChar(&t, &msg.gga.altitude_units);
 
   // Try to queue it
-  xQueueSendToBack(NmeaMessageQueue, &msg, 0);
+  xQueueSendToBack(nmea_message_queue, &msg, 0);
 }
 
-static void ParseZda(const uint32_t length)
+static void ParseZda(const uint32_t size)
 {
-  GenericNmeaMessageT msg;
-  msg.MessageType = NMEA_MESSAGE_TYPE_ZDA;
+  GenericNmeaMessage_t msg;
+  msg.message_type = NMEA_MESSAGE_TYPE_ZDA;
   TokenIterateT t;
-  TokenIteratorInit(&t, ',', packetBuffer + 6, length - 6);
+  TokenIteratorInit(&t, ',', packet_buffer + 6, size - 6);
 
-  msg.Zda.Valid = 1;
+  msg.zda.valid = true;
 
   // Time
-  if (!ExtractTime(&t, &msg.Zda.Time))
+  if (!ExtractTime(&t, &msg.zda.time))
   {
-    msg.Zda.Valid = 0;
+    msg.zda.valid = false;
   }
 
   // Day
-  if (!ExtractByteInt(&t, (int8_t*)&msg.Zda.Day))
+  if (!ExtractByteInt(&t, (int8_t*)&msg.zda.day))
   {
-    msg.Zda.Valid = 0;
+    msg.zda.valid = false;
   }
 
   // Month
-  if (!ExtractByteInt(&t, (int8_t*)&msg.Zda.Month))
+  if (!ExtractByteInt(&t, (int8_t*)&msg.zda.month))
   {
-    msg.Zda.Valid = 0;
+    msg.zda.valid = false;
   }
 
   // Year
-  if (!ExtractInt(&t, (int32_t*)&msg.Zda.Year))
+  if (!ExtractInt(&t, (int32_t*)&msg.zda.year))
   {
-    msg.Zda.Valid = 0;
+    msg.zda.valid = false;
   }
 
   // Try to queue it
-  xQueueSendToBack(NmeaMessageQueue, &msg, 0);
+  xQueueSendToBack(nmea_message_queue, &msg, 0);
 }
 
-QueueHandle_t* Nmea0183GetQueue(void)
+QueueHandle_t* Nmea0183_GetQueue(void)
 {
-  return &NmeaMessageQueue;
+  return &nmea_message_queue;
 }

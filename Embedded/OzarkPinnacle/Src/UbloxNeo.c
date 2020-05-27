@@ -56,5 +56,5 @@ void UbloxNeo_SetOutputRate(const char* msg_id, const uint8_t rate)
   NmeaInsertChecksum(config_msg, CONFIG_SIZE);
 
   // Send
-  HAL_UART_Transmit(Nmea0183GetUartHandle(), config_msg, CONFIG_SIZE, 5000);
+  HAL_UART_Transmit(Nmea0183_GetUartHandle(), config_msg, CONFIG_SIZE, 5000);
 }

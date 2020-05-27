@@ -75,7 +75,7 @@ static void BeaconTask(void* pvParameters)
   float temperature;
   float pressure;
   float humidity;
-  SituationInfoT situation;
+  SituationInfo_t situation;
 
   // Get config
   ConfigT* config = FlashConfigGetPtr();
@@ -109,8 +109,8 @@ static void BeaconTask(void* pvParameters)
     {
       beacon_period = CalculateSmartBeacon(config->Aprs.BeaconPeriod,
         config->Aprs.SmartBeaconMinimumBeaconPeriod,
-        situation.Speed, situation.dSpeed,
-        situation.dTrack,
+        situation.speed, situation.delta_speed,
+        situation.delta_track,
         config->Aprs.SmartBeaconWeightSpeed,
         config->Aprs.SmartBeaconWeightdSpeed,
         config->Aprs.SmartBeaconWeightdHeading
@@ -134,18 +134,18 @@ static void BeaconTask(void* pvParameters)
 
     // Fill APRS report
     aprs_report.Timestamp = RtcGet();
-    aprs_report.Position.Lat = situation.Lat;
-    aprs_report.Position.Lon = situation.Lon;
+    aprs_report.Position.Lat = situation.lat;
+    aprs_report.Position.Lon = situation.lon;
     aprs_report.Position.Symbol = config->Aprs.Symbol;
     aprs_report.Position.SymbolTable = config->Aprs.SymbolTable;
 
     // Build APRS report
     aprs_size = 0;
     aprs_size += AprsMakePosition(aprs_buffer, &aprs_report);
-    aprs_size += AprsMakeExtCourseSpeed(aprs_buffer + aprs_size, (uint8_t)situation.Track, (uint16_t)situation.Speed);
+    aprs_size += AprsMakeExtCourseSpeed(aprs_buffer + aprs_size, (uint8_t)situation.track, (uint16_t)situation.speed);
 
     // Append comment for GPS altitude
-    sprintf((char*)aprs_buffer + aprs_size, "A=%06i", (int)Meters2Feet(situation.Altitude));
+    sprintf((char*)aprs_buffer + aprs_size, "A=%06i", (int)Meters2Feet(situation.altitude));
     aprs_size += 8;
 
     // Add telemetry comment

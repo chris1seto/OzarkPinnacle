@@ -27,14 +27,14 @@
 
 typedef struct
 {
-  float Lat;
-  float Lon;
-  float Altitude;
-  float LastAltitude;
-  float Track;
-  float LastTrack;
-  float Speed;
-  float LastSpeed;
+  float lat;
+  float lon;
+  float altitude;
+  float last_altitude;
+  float track;
+  float last_track;
+  float speed;
+  float last_speed;
 } InternalSituationInfo_t;
 
 static QueueHandle_t situation_queue;
@@ -43,7 +43,7 @@ static void GpsHubTask(void* pvParameters);
 
 void GpsHub_Init(void)
 {
-  situation_queue = xQueueCreate(1, sizeof(SituationInfoT));
+  situation_queue = xQueueCreate(1, sizeof(SituationInfo_t));
 
   if (situation_queue == NULL)
   {
@@ -62,14 +62,14 @@ void GpsHub_StartTask(void)
     NULL);
 }
 
-static void HandleNewZda(const NmeaZdaT* zda)
+static void HandleNewZda(const NmeaZda_t* zda)
 {
   struct tm time;
   uint32_t gps_time_stamp;
   uint32_t current_time;
 
   // Ignore if we have no fix
-  if (!zda->Valid || zda->Year == 0)
+  if (!zda->valid || zda->year == 0)
   {
     return;
   }
@@ -78,12 +78,12 @@ static void HandleNewZda(const NmeaZdaT* zda)
   current_time = RtcGet();
 
   // Load the time structure with GPS fields
-  time.tm_hour = zda->Time.Hour;
-  time.tm_min  = zda->Time.Minute;
-  time.tm_sec  = zda->Time.Second;
-  time.tm_year = (zda->Year - GPS_EPOCH);
-  time.tm_mon  = (zda->Month - 1);
-  time.tm_mday = zda->Day;
+  time.tm_hour = zda->time.hour;
+  time.tm_min  = zda->time.minute;
+  time.tm_sec  = zda->time.second;
+  time.tm_year = (zda->year - GPS_EPOCH);
+  time.tm_mon  = (zda->month - 1);
+  time.tm_mday = zda->day;
 
   // Make timestamp from GPS time
   gps_time_stamp = (uint32_t)mktime(&time);
@@ -99,14 +99,14 @@ static void HandleNewZda(const NmeaZdaT* zda)
   }
 }
 
-void GpsHub_GetSituation(SituationInfoT* situation)
+bool GpsHub_GetSituation(SituationInfo_t* const situation)
 {
-  xQueuePeek(situation_queue, situation, 0);
+  return xQueuePeek(situation_queue, situation, 0);
 }
 
 static void GpsHubTask(void* pvParameters)
 {
-  GenericNmeaMessageT msg;
+  GenericNmeaMessage_t msg;
   QueueHandle_t* nmea_queue;
   TickType_t last_task_time = 0;
   TickType_t last_situation_update_time = 0;
@@ -118,10 +118,10 @@ static void GpsHubTask(void* pvParameters)
   TickType_t time_now;
 
   InternalSituationInfo_t situation = {0};
-  SituationInfoT beacon_info;
+  SituationInfo_t beacon_info = {0};
 
   // Get GPS NMEA queue
-  nmea_queue = Nmea0183GetQueue();
+  nmea_queue = Nmea0183_GetQueue();
 
   // Something has gone wrong if we never get this
   if (nmea_queue == NULL)
@@ -144,47 +144,47 @@ static void GpsHubTask(void* pvParameters)
       if(xQueueReceive(*nmea_queue, &msg, 0))
       {
         // Handle messages
-        switch(msg.MessageType)
+        switch(msg.message_type)
         {
           // Handle GGA message
-          case NMEA_MESSAGE_TYPE_GGA :
+          case NMEA_MESSAGE_TYPE_GGA:
             // Mark that we did get a packet
             last_gga_time = time_now;
 
             // Ignore if we have no fix or if the fix is not present
-            if (!IsAscii(msg.Gga.Fix) || msg.Gga.Fix <= '0')
+            if (!IsAscii(msg.gga.fix) || msg.gga.fix <= '0')
             {
               continue;
             }
 
-            situation.Lat = msg.Gga.Position.Lat;
-            situation.Lon = msg.Gga.Position.Lon;
-            situation.Altitude = msg.Gga.Altitude;
+            situation.lat = msg.gga.position.lat;
+            situation.lon = msg.gga.position.lon;
+            situation.altitude = msg.gga.altitude;
             break;
 
           // Handle RMC message
-          case NMEA_MESSAGE_TYPE_RMC :
+          case NMEA_MESSAGE_TYPE_RMC:
             // Mark that we did get a packet
             last_rmc_time = time_now;
 
             // Ignore if we have no fix
-            if (msg.Rmc.Fix != 'A')
+            if (msg.rmc.fix != 'A')
             {
               continue;
             }
 
             // Exact from the new GPS packet
-            situation.LastSpeed = situation.Speed;
-            situation.Speed = msg.Rmc.Speed;
-            situation.LastTrack = situation.Track;
-            situation.Track = msg.Rmc.Track;
+            situation.last_speed = situation.speed;
+            situation.speed = msg.rmc.speed;
+            situation.last_track = situation.track;
+            situation.track = msg.rmc.track;
             break;
 
           // Handle ZDA message
           case NMEA_MESSAGE_TYPE_ZDA :
             // Mark that we did get a packet
             last_zda_time = time_now;
-            HandleNewZda(&msg.Zda);
+            HandleNewZda(&msg.zda);
             break;
 
         default:
@@ -219,14 +219,14 @@ static void GpsHubTask(void* pvParameters)
     if (time_now - last_situation_update_time > SITUATION_UPDATE)
     {
       // Fill out situation info
-      beacon_info.Lat = situation.Lat;
-      beacon_info.Lon = situation.Lon;
-      beacon_info.Altitude = situation.Altitude;
-      beacon_info.dAltitude = situation.Altitude - situation.LastAltitude;
-      beacon_info.Speed = situation.Speed;
-      beacon_info.dSpeed = situation.Speed - situation.LastSpeed;
-      beacon_info.Track = situation.Track;
-      beacon_info.dTrack = situation.Track - situation.LastTrack;
+      beacon_info.lat = situation.lat;
+      beacon_info.lon = situation.lon;
+      beacon_info.altitude = situation.altitude;
+      beacon_info.delta_altitude = situation.altitude - situation.last_altitude;
+      beacon_info.speed = situation.speed;
+      beacon_info.delta_speed = situation.speed - situation.last_speed;
+      beacon_info.track = situation.track;
+      beacon_info.delta_track = situation.track - situation.last_track;
 
       // Enqueue
       xQueueOverwrite(situation_queue, &beacon_info);

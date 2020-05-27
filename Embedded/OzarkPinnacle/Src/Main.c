@@ -108,7 +108,7 @@ int main(void)
   
   // Init NMEA
   WatchdogFeed();
-  Nmea0183Init();
+  Nmea0183_Init();
   
   // Init GPS Hub
   GpsHub_Init();
@@ -126,7 +126,7 @@ int main(void)
     &idleTaskHandle);
 
   // Start nmea parser
-  Nmea0183StartParser();
+  Nmea0183_StartParser();
   
   // Start GPS hub
   GpsHub_StartTask();
