@@ -1,7 +1,7 @@
 #ifndef BEACON_H
+#define BEACON_H
 
-void BeaconInit(void);
-void BeaconStartTask(void);
+void Beacon_Init(void);
+void Beacon_StartTask(void);
 
-
-#endif // !BEACON_H
+#endif

@@ -101,7 +101,7 @@ int main(void)
   Dra818Init();
   
   // Init beacon
-  BeaconInit();
+  Beacon_Init();
 
   // Init Audio Out
   AudioInit();
@@ -111,7 +111,7 @@ int main(void)
   Nmea0183Init();
   
   // Init GPS Hub
-  GpsHubInit();
+  GpsHub_Init();
 
   // Init radio
   WatchdogFeed();
@@ -129,13 +129,13 @@ int main(void)
   Nmea0183StartParser();
   
   // Start GPS hub
-  GpsHubStartTask();
+  GpsHub_StartTask();
   
   // Start radio task
   RadioTaskStart();
 
   // Start beaconing
-  BeaconStartTask();
+  Beacon_StartTask();
 
   // Start RTOS kernal
   vTaskStartScheduler();

@@ -13,4 +13,4 @@ void LedOff(const enum LED led);
 void LedOn(const enum LED led);
 void LedToggle(const enum LED led);
 
-#endif // !LED_H
+#endif

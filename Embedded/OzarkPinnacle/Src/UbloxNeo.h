@@ -1,7 +1,6 @@
 #ifndef UBLOXNEO_H
 #define UBLOXNEO_H
 
-void UbloxNeoSetOutputRate(const char* msgId, const uint8_t rate);
+void UbloxNeo_SetOutputRate(const char* msg_id, const uint8_t rate);
 
-
-#endif // !UBLOXNEO_H
+#endif

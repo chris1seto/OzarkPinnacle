@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stm32f4xx_hal.h>
 #include "FreeRTOS.h"
@@ -34,24 +35,23 @@ typedef struct
   float LastTrack;
   float Speed;
   float LastSpeed;
-} InternalSituationInfoT;
+} InternalSituationInfo_t;
 
-static QueueHandle_t situationQueue;
+static QueueHandle_t situation_queue;
 
 static void GpsHubTask(void* pvParameters);
-static TaskHandle_t gpsHubTaskHandle = NULL;
 
-void GpsHubInit(void)
+void GpsHub_Init(void)
 {
-  situationQueue = xQueueCreate(1, sizeof(SituationInfoT));
+  situation_queue = xQueueCreate(1, sizeof(SituationInfoT));
 
-  if (situationQueue == NULL)
+  if (situation_queue == NULL)
   {
     return;
   }
 }
 
-void GpsHubStartTask(void)
+void GpsHub_StartTask(void)
 {
   // Create task
   xTaskCreate(GpsHubTask,
@@ -59,14 +59,14 @@ void GpsHubStartTask(void)
     300,
     NULL,
     5,
-    &gpsHubTaskHandle);
+    NULL);
 }
 
-void HandleNewZda(const NmeaZdaT* zda)
+static void HandleNewZda(const NmeaZdaT* zda)
 {
   struct tm time;
-  uint32_t gpsTimeStamp;
-  uint32_t currentTime;
+  uint32_t gps_time_stamp;
+  uint32_t current_time;
 
   // Ignore if we have no fix
   if (!zda->Valid || zda->Year == 0)
@@ -75,8 +75,8 @@ void HandleNewZda(const NmeaZdaT* zda)
   }
 
   // Get the current time
-  currentTime = RtcGet();
-  
+  current_time = RtcGet();
+
   // Load the time structure with GPS fields
   time.tm_hour = zda->Time.Hour;
   time.tm_min  = zda->Time.Minute;
@@ -86,62 +86,62 @@ void HandleNewZda(const NmeaZdaT* zda)
   time.tm_mday = zda->Day;
 
   // Make timestamp from GPS time
-  gpsTimeStamp = (uint32_t)mktime(&time);
+  gps_time_stamp = (uint32_t)mktime(&time);
 
   // If there is more than 5 second difference between our system time and GPS
   // Because of uint32_t arithmatic, one of these comparsions will always be true if one value is larger than the other
   // If both are true, it means one value is larger than the other, and that difference is more than MAX_TIME_DELTA
-  if (currentTime - gpsTimeStamp >= MAX_TIME_DELTA && gpsTimeStamp - currentTime >= MAX_TIME_DELTA)
+  if (current_time - gps_time_stamp >= MAX_TIME_DELTA && gps_time_stamp - current_time >= MAX_TIME_DELTA)
   {
     // Set the new system time
-    RtcSet(gpsTimeStamp);
+    RtcSet(gps_time_stamp);
     printf("Set RTC\r\n");
   }
 }
 
-void GpsHubGetSituation(SituationInfoT* situation)
+void GpsHub_GetSituation(SituationInfoT* situation)
 {
-  xQueuePeek(situationQueue, situation, 0);
+  xQueuePeek(situation_queue, situation, 0);
 }
 
 static void GpsHubTask(void* pvParameters)
 {
   GenericNmeaMessageT msg;
-  QueueHandle_t* nmeaQueue;
-  TickType_t lastTaskTime = 0;
-  TickType_t lastSituationUpdateTime = 0;
+  QueueHandle_t* nmea_queue;
+  TickType_t last_task_time = 0;
+  TickType_t last_situation_update_time = 0;
 
-  TickType_t lastCheckForTimeoutTime = 0;
-  TickType_t lastGga = 0;
-  TickType_t lastZda = 0;
-  TickType_t lastRmc = 0;
-  TickType_t timeNow;
+  TickType_t last_check_for_timeout_time = 0;
+  TickType_t last_gga_time = 0;
+  TickType_t last_zda_time = 0;
+  TickType_t last_rmc_time = 0;
+  TickType_t time_now;
 
-  InternalSituationInfoT situation = {0};
-  SituationInfoT beaconInfo;
+  InternalSituationInfo_t situation = {0};
+  SituationInfoT beacon_info;
 
   // Get GPS NMEA queue
-  nmeaQueue = Nmea0183GetQueue();
+  nmea_queue = Nmea0183GetQueue();
 
   // Something has gone wrong if we never get this
-  if (nmeaQueue == NULL)
+  if (nmea_queue == NULL)
   {
     return;
   }
 
   // Task loop
-  while (1)
+  while (true)
   {
     // Block until it's time to start
-    vTaskDelayUntil(&lastTaskTime, 100);
+    vTaskDelayUntil(&last_task_time, 100);
 
-    timeNow = xTaskGetTickCount();
+    time_now = xTaskGetTickCount();
 
     // Try to get a new message from NMEA as long as there is data to read
-    if(!xQueueIsQueueEmptyFromISR(*nmeaQueue))
+    if(!xQueueIsQueueEmptyFromISR(*nmea_queue))
     {
       // Fetch the message
-      if(xQueueReceive(*nmeaQueue, &msg, 0))
+      if(xQueueReceive(*nmea_queue, &msg, 0))
       {
         // Handle messages
         switch(msg.MessageType)
@@ -149,7 +149,7 @@ static void GpsHubTask(void* pvParameters)
           // Handle GGA message
           case NMEA_MESSAGE_TYPE_GGA :
             // Mark that we did get a packet
-            lastGga = timeNow;
+            last_gga_time = time_now;
 
             // Ignore if we have no fix or if the fix is not present
             if (!IsAscii(msg.Gga.Fix) || msg.Gga.Fix <= '0')
@@ -165,7 +165,7 @@ static void GpsHubTask(void* pvParameters)
           // Handle RMC message
           case NMEA_MESSAGE_TYPE_RMC :
             // Mark that we did get a packet
-            lastRmc = timeNow;
+            last_rmc_time = time_now;
 
             // Ignore if we have no fix
             if (msg.Rmc.Fix != 'A')
@@ -179,11 +179,11 @@ static void GpsHubTask(void* pvParameters)
             situation.LastTrack = situation.Track;
             situation.Track = msg.Rmc.Track;
             break;
-          
+
           // Handle ZDA message
           case NMEA_MESSAGE_TYPE_ZDA :
             // Mark that we did get a packet
-            lastZda = timeNow;
+            last_zda_time = time_now;
             HandleNewZda(&msg.Zda);
             break;
 
@@ -195,41 +195,41 @@ static void GpsHubTask(void* pvParameters)
     }
 
     // Check for GPS timeouts on packets
-    if (timeNow - lastCheckForTimeoutTime > GPS_RECONFIGURE_TIMEOUT)
+    if (time_now - last_check_for_timeout_time > GPS_RECONFIGURE_TIMEOUT)
     {
-      lastCheckForTimeoutTime = timeNow;
+      last_check_for_timeout_time = time_now;
 
-      if (timeNow - lastGga > MAX_GPS_TIMEOUT)
+      if (time_now - last_gga_time > MAX_GPS_TIMEOUT)
       {
-        UbloxNeoSetOutputRate("GGA", 1);
+        UbloxNeo_SetOutputRate("GGA", 1);
       }
 
-      if (timeNow - lastRmc > MAX_GPS_TIMEOUT)
+      if (time_now - last_rmc_time > MAX_GPS_TIMEOUT)
       {
-        UbloxNeoSetOutputRate("RMC", 1);
+        UbloxNeo_SetOutputRate("RMC", 1);
       }
 
-      if (timeNow - lastZda > MAX_GPS_TIMEOUT)
+      if (time_now - last_zda_time > MAX_GPS_TIMEOUT)
       {
-        UbloxNeoSetOutputRate("ZDA", 2);
+        UbloxNeo_SetOutputRate("ZDA", 2);
       }
     }
 
     // 1hz updates to situation
-    if (timeNow - lastSituationUpdateTime > SITUATION_UPDATE)
+    if (time_now - last_situation_update_time > SITUATION_UPDATE)
     {
       // Fill out situation info
-      beaconInfo.Lat = situation.Lat;
-      beaconInfo.Lon = situation.Lon;
-      beaconInfo.Altitude = situation.Altitude;
-      beaconInfo.dAltitude = situation.Altitude - situation.LastAltitude;
-      beaconInfo.Speed = situation.Speed;
-      beaconInfo.dSpeed = situation.Speed - situation.LastSpeed;
-      beaconInfo.Track = situation.Track;
-      beaconInfo.dTrack = situation.Track - situation.LastTrack;
+      beacon_info.Lat = situation.Lat;
+      beacon_info.Lon = situation.Lon;
+      beacon_info.Altitude = situation.Altitude;
+      beacon_info.dAltitude = situation.Altitude - situation.LastAltitude;
+      beacon_info.Speed = situation.Speed;
+      beacon_info.dSpeed = situation.Speed - situation.LastSpeed;
+      beacon_info.Track = situation.Track;
+      beacon_info.dTrack = situation.Track - situation.LastTrack;
 
       // Enqueue
-      xQueueOverwrite(situationQueue, &beaconInfo);
+      xQueueOverwrite(situation_queue, &beacon_info);
     }
   }
 }

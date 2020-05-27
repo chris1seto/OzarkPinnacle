@@ -21,9 +21,9 @@
 
 // APRS packet buffer
 #define PACKET_BUFFER_SIZE    500
-static uint8_t aprsBuffer[PACKET_BUFFER_SIZE];
+static uint8_t aprs_buffer[PACKET_BUFFER_SIZE];
 
-void BeaconTask(void* pvParameters);
+static void BeaconTask(void* pvParameters);
 static TaskHandle_t beaconTaskHandle = NULL;
 
 #define FIRST_BEACON_OFFSET    500
@@ -31,11 +31,11 @@ static TaskHandle_t beaconTaskHandle = NULL;
 #define PREFLAG_COUNT    10
 #define POSTFLAG_COUNT    25
 
-void BeaconInit(void)
+void Beacon_Init(void)
 {
 }
 
-void BeaconStartTask(void)
+void Beacon_StartTask(void)
 {
   // Create task
   xTaskCreate(BeaconTask,
@@ -64,14 +64,14 @@ static uint32_t CalculateSmartBeacon(const uint32_t minTime,
   return minTime;
 }
 
-void BeaconTask(void* pvParameters)
+static void BeaconTask(void* pvParameters)
 {
-  QueueHandle_t* txQueue;
-  TickType_t lastTaskTime = 0;
-  uint32_t aprsLength;
-  AprsPositionReportT aprsReport;
-  RadioPacketT beaconPacket;
-  uint32_t beaconPeriod;
+  QueueHandle_t* tx_queue;
+  TickType_t last_task_time = 0;
+  uint32_t aprs_size;
+  AprsPositionReportT aprs_report;
+  RadioPacketT beacon_packet;
+  uint32_t beacon_period;
   float temperature;
   float pressure;
   float humidity;
@@ -81,25 +81,25 @@ void BeaconTask(void* pvParameters)
   ConfigT* config = FlashConfigGetPtr();
 
   // Get the queues
-  txQueue = RadioGetTxQueue();
+  tx_queue = RadioGetTxQueue();
 
   // If we didn't get any queues, something is really wrong
-  if (txQueue == NULL)
+  if (tx_queue == NULL)
   {
     return;
   }
 
   // Beacon quickly on the first start
-  beaconPeriod = FIRST_BEACON_OFFSET;
+  beacon_period = FIRST_BEACON_OFFSET;
 
   // Beacon loop
   while (true)
   {
     // Block until it's time to start
-    vTaskDelayUntil(&lastTaskTime, beaconPeriod);
+    vTaskDelayUntil(&last_task_time, beacon_period);
 
     // Get the latest situation
-    GpsHubGetSituation(&situation);
+    GpsHub_GetSituation(&situation);
 
     // Get the current environmental data
     Bme280ShimGetTph(&temperature, &pressure, &humidity);
@@ -107,7 +107,7 @@ void BeaconTask(void* pvParameters)
     // Compute smart beacon period
     if (config->Aprs.UseSmartBeacon)
     {
-      beaconPeriod = CalculateSmartBeacon(config->Aprs.BeaconPeriod,
+      beacon_period = CalculateSmartBeacon(config->Aprs.BeaconPeriod,
         config->Aprs.SmartBeaconMinimumBeaconPeriod,
         situation.Speed, situation.dSpeed,
         situation.dTrack,
@@ -118,45 +118,45 @@ void BeaconTask(void* pvParameters)
     }
     else
     {
-      beaconPeriod = config->Aprs.BeaconPeriod;
+      beacon_period = config->Aprs.BeaconPeriod;
     }
-  
-    // Configure Ax25 frame
-    memcpy(beaconPacket.Frame.Source, config->Aprs.Callsign, 6);
-    beaconPacket.Frame.SourceSsid = config->Aprs.Ssid;
-    memcpy(beaconPacket.Frame.Destination, "APRS  ", 6);
-    beaconPacket.Frame.DestinationSsid = 0;
-    memcpy(beaconPacket.Path, config->Aprs.Path, 7);
-    beaconPacket.Frame.PathLen = 7;
 
-    beaconPacket.Frame.PreFlagCount = PREFLAG_COUNT;
-    beaconPacket.Frame.PostFlagCount = POSTFLAG_COUNT;
+    // Configure Ax25 frame
+    memcpy(beacon_packet.Frame.Source, config->Aprs.Callsign, 6);
+    beacon_packet.Frame.SourceSsid = config->Aprs.Ssid;
+    memcpy(beacon_packet.Frame.Destination, "APRS  ", 6);
+    beacon_packet.Frame.DestinationSsid = 0;
+    memcpy(beacon_packet.Path, config->Aprs.Path, 7);
+    beacon_packet.Frame.PathLen = 7;
+
+    beacon_packet.Frame.PreFlagCount = PREFLAG_COUNT;
+    beacon_packet.Frame.PostFlagCount = POSTFLAG_COUNT;
 
     // Fill APRS report
-    aprsReport.Timestamp = RtcGet();
-    aprsReport.Position.Lat = situation.Lat;
-    aprsReport.Position.Lon = situation.Lon;
-    aprsReport.Position.Symbol = config->Aprs.Symbol;
-    aprsReport.Position.SymbolTable = config->Aprs.SymbolTable;
+    aprs_report.Timestamp = RtcGet();
+    aprs_report.Position.Lat = situation.Lat;
+    aprs_report.Position.Lon = situation.Lon;
+    aprs_report.Position.Symbol = config->Aprs.Symbol;
+    aprs_report.Position.SymbolTable = config->Aprs.SymbolTable;
 
     // Build APRS report
-    aprsLength = 0;
-    aprsLength += AprsMakePosition(aprsBuffer, &aprsReport);
-    aprsLength += AprsMakeExtCourseSpeed(aprsBuffer + aprsLength, (uint8_t)situation.Track, (uint16_t)situation.Speed);
+    aprs_size = 0;
+    aprs_size += AprsMakePosition(aprs_buffer, &aprs_report);
+    aprs_size += AprsMakeExtCourseSpeed(aprs_buffer + aprs_size, (uint8_t)situation.Track, (uint16_t)situation.Speed);
 
     // Append comment for GPS altitude
-    sprintf((char*)aprsBuffer + aprsLength, "A=%06i", (int)Meters2Feet(situation.Altitude));
-    aprsLength += 8;
+    sprintf((char*)aprs_buffer + aprs_size, "A=%06i", (int)Meters2Feet(situation.Altitude));
+    aprs_size += 8;
 
     // Add telemetry comment
-    sprintf((char*)aprsBuffer + aprsLength, "/Pa=%06i/Rh=%02.02f/Ti=%02.02f/V=%02.02f", (int)pressure, humidity, temperature, BspGetVSense());
-    aprsLength += 35;
+    sprintf((char*)aprs_buffer + aprs_size, "/Pa=%06i/Rh=%02.02f/Ti=%02.02f/V=%02.02f", (int)pressure, humidity, temperature, BspGetVSense());
+    aprs_size += 35;
 
     // Add the APRS report to the packet
-    memcpy(beaconPacket.Payload, aprsBuffer, aprsLength);
-    beaconPacket.Frame.PayloadLength = aprsLength;
+    memcpy(beacon_packet.Payload, aprs_buffer, aprs_size);
+    beacon_packet.Frame.PayloadLength = aprs_size;
 
     // Enqueue the packet in the transmit buffer
-    xQueueSendToBack(*txQueue, &beaconPacket, 0);
+    xQueueSendToBack(*tx_queue, &beacon_packet, 0);
   }
 }

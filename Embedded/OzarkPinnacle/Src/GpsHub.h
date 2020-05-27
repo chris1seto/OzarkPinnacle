@@ -19,8 +19,8 @@ typedef struct
   float dSpeed;
 } SituationInfoT;
 
-void GpsHubInit(void);
-void GpsHubStartTask(void);
-void GpsHubGetSituation(SituationInfoT* situation);
+void GpsHub_Init(void);
+void GpsHub_StartTask(void);
+void GpsHub_GetSituation(SituationInfoT* situation);
 
-#endif // !GPSHUB_H
+#endif
