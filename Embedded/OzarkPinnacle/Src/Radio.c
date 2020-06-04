@@ -71,20 +71,28 @@ static void Dra818AprsInit(void)
   Dra818IoPowerUp();
 
   // Wait for the module to init
-  vTaskDelay(100 / portTICK_PERIOD_MS);
+  WatchdogFeed();
+  vTaskDelay(600 / portTICK_PERIOD_MS);
 
   // Connect (to init the module?)
-  Dra818Connect();
-  vTaskDelay(100 / portTICK_PERIOD_MS);
+  printf("Trying to init Dra818... ");
+  while (!Dra818_Connect())
+  {
+    printf("[No Response] ");
+    WatchdogFeed();
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
+  printf("[OK!]\r\n");
 
   // Configure group
-  Dra818SetGroup(144.390, 144.390, "0000", "0000", 8);
+  Dra818_SetGroup(144.390, 144.390, "0000", "0000", 8);
+  WatchdogFeed();
   vTaskDelay(100 / portTICK_PERIOD_MS);
 
   // Configure filter
-  Dra818SetFilter(1, 0, 0);
+  Dra818_SetFilter(1, 0, 0);
 
-  // Set RF power
+  // Set PA off for now
   Dra818IoSetLowRfPower();
 }
 

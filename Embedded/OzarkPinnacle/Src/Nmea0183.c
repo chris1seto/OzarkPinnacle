@@ -5,6 +5,7 @@
   Resources
     * http://www.gpsinformation.org/dale/nmea.htm
 */
+#include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stm32f4xx_hal.h>
@@ -65,10 +66,10 @@ static uint32_t parser_state = PARSE_STATE_HEADER;
 #define NMEA_PROCESSOR_COUNT  4
 static NmeaProcessor_t processors[NMEA_PROCESSOR_COUNT] =
 {
-  {NMEA_MESSAGE_TYPE_GSA, "GNGSA", ParseGsa, 0},
-  {NMEA_MESSAGE_TYPE_GGA, "GNGGA", Parsegga, 0},
-  {NMEA_MESSAGE_TYPE_RMC, "GNRMC", ParseRmc, 0},
-  {NMEA_MESSAGE_TYPE_ZDA, "GNZDA", ParseZda, 0}
+  {NMEA_MESSAGE_TYPE_GSA, "GPGSA", ParseGsa, 0},
+  {NMEA_MESSAGE_TYPE_GGA, "GPGGA", Parsegga, 0},
+  {NMEA_MESSAGE_TYPE_RMC, "GPRMC", ParseRmc, 0},
+  {NMEA_MESSAGE_TYPE_ZDA, "GPZDA", ParseZda, 0}
 };
 
 // Peripheral handles
@@ -95,7 +96,7 @@ static void InitUart(void)
   
   // Configure the USART peripheral
   uart_handle.Instance          = USART3;
-  uart_handle.Init.BaudRate     = 9600;
+  uart_handle.Init.BaudRate     = 38400;
   uart_handle.Init.WordLength   = UART_WORDLENGTH_8B;
   uart_handle.Init.StopBits     = UART_STOPBITS_1;
   uart_handle.Init.Parity       = UART_PARITY_NONE;
@@ -160,7 +161,7 @@ void Nmea0183_StartParser(void)
   // Start Task
   xTaskCreate(Nmea0183Task,
     "Nmea0183ParserTask",
-    256,
+    1024,
     NULL,
     6,
     NULL);

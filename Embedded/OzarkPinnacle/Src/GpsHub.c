@@ -23,7 +23,7 @@
 #define GPS_EPOCH        1900
 
 // Frequency of situation updates
-#define SITUATION_UPDATE    1000
+#define SITUATION_UPDATE_PERIOD    (100 / portTICK_PERIOD_MS)
 
 typedef struct
 {
@@ -56,7 +56,7 @@ void GpsHub_StartTask(void)
   // Create task
   xTaskCreate(GpsHubTask,
     "GpsHub",
-    300,
+    1024,
     NULL,
     5,
     NULL);
@@ -108,9 +108,6 @@ static void GpsHubTask(void* pvParameters)
 {
   GenericNmeaMessage_t msg;
   QueueHandle_t* nmea_queue;
-  TickType_t last_task_time = 0;
-  TickType_t last_situation_update_time = 0;
-
   TickType_t last_check_for_timeout_time = 0;
   TickType_t last_gga_time = 0;
   TickType_t last_zda_time = 0;
@@ -132,13 +129,10 @@ static void GpsHubTask(void* pvParameters)
   // Task loop
   while (true)
   {
-    // Block until it's time to start
-    vTaskDelayUntil(&last_task_time, 100);
-
     time_now = xTaskGetTickCount();
 
     // Try to get a new message from NMEA as long as there is data to read
-    if(!xQueueIsQueueEmptyFromISR(*nmea_queue))
+    if (!xQueueIsQueueEmptyFromISR(*nmea_queue))
     {
       // Fetch the message
       if(xQueueReceive(*nmea_queue, &msg, 0))
@@ -181,15 +175,15 @@ static void GpsHubTask(void* pvParameters)
             break;
 
           // Handle ZDA message
-          case NMEA_MESSAGE_TYPE_ZDA :
+          case NMEA_MESSAGE_TYPE_ZDA:
             // Mark that we did get a packet
             last_zda_time = time_now;
             HandleNewZda(&msg.zda);
             break;
 
-        default:
-        case NMEA_MESSAGE_TYPE_GSA:
-          break;
+          default:
+          case NMEA_MESSAGE_TYPE_GSA:
+            break;
         }
       }
     }
@@ -215,21 +209,19 @@ static void GpsHubTask(void* pvParameters)
       }
     }
 
-    // 1hz updates to situation
-    if (time_now - last_situation_update_time > SITUATION_UPDATE)
-    {
-      // Fill out situation info
-      beacon_info.lat = situation.lat;
-      beacon_info.lon = situation.lon;
-      beacon_info.altitude = situation.altitude;
-      beacon_info.delta_altitude = situation.altitude - situation.last_altitude;
-      beacon_info.speed = situation.speed;
-      beacon_info.delta_speed = situation.speed - situation.last_speed;
-      beacon_info.track = situation.track;
-      beacon_info.delta_track = situation.track - situation.last_track;
+    // Fill out situation info
+    beacon_info.lat = situation.lat;
+    beacon_info.lon = situation.lon;
+    beacon_info.altitude = situation.altitude;
+    beacon_info.delta_altitude = situation.altitude - situation.last_altitude;
+    beacon_info.speed = situation.speed;
+    beacon_info.delta_speed = situation.speed - situation.last_speed;
+    beacon_info.track = situation.track;
+    beacon_info.delta_track = situation.track - situation.last_track;
 
-      // Enqueue
-      xQueueOverwrite(situation_queue, &beacon_info);
-    }
+    // Enqueue
+    xQueueOverwrite(situation_queue, &beacon_info);
+
+    vTaskDelay(SITUATION_UPDATE_PERIOD);
   }
 }

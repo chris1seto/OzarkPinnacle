@@ -90,7 +90,7 @@ int main(void)
 
   // Init BME280
   WatchdogFeed();
-  Bme280ShimInit();
+  //Bme280ShimInit();
 
   // Init USB
   UsbInit();
@@ -98,7 +98,7 @@ int main(void)
   // Init DRA818
   Dra818IoInit();
   WatchdogFeed();
-  Dra818Init();
+  Dra818_Init();
   
   // Init beacon
   Beacon_Init();

@@ -40,7 +40,7 @@ void Beacon_StartTask(void)
   // Create task
   xTaskCreate(BeaconTask,
     "Beacon",
-    450,
+    1024,
     NULL,
     3,
     &beaconTaskHandle);
@@ -72,10 +72,10 @@ static void BeaconTask(void* pvParameters)
   AprsPositionReportT aprs_report;
   RadioPacketT beacon_packet;
   uint32_t beacon_period;
-  float temperature;
-  float pressure;
-  float humidity;
-  SituationInfo_t situation;
+  float temperature = 0;
+  float pressure = 0;
+  float humidity = 0;
+  SituationInfo_t situation = {0};
 
   // Get config
   ConfigT* config = FlashConfigGetPtr();
@@ -102,7 +102,7 @@ static void BeaconTask(void* pvParameters)
     GpsHub_GetSituation(&situation);
 
     // Get the current environmental data
-    Bme280ShimGetTph(&temperature, &pressure, &humidity);
+    //Bme280ShimGetTph(&temperature, &pressure, &humidity);
 
     // Compute smart beacon period
     if (config->Aprs.UseSmartBeacon)
