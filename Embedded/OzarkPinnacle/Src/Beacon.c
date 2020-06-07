@@ -28,8 +28,8 @@ static TaskHandle_t beaconTaskHandle = NULL;
 
 #define FIRST_BEACON_OFFSET    500
 
-#define PREFLAG_COUNT    10
-#define POSTFLAG_COUNT    25
+#define PREFLAG_COUNT    45
+#define POSTFLAG_COUNT    35
 
 void Beacon_Init(void)
 {
@@ -141,8 +141,8 @@ static void BeaconTask(void* pvParameters)
 
     // Build APRS report
     aprs_size = 0;
-    aprs_size += AprsMakePosition(aprs_buffer, &aprs_report);
-    aprs_size += AprsMakeExtCourseSpeed(aprs_buffer + aprs_size, (uint8_t)situation.track, (uint16_t)situation.speed);
+    aprs_size += Aprs_MakePosition(aprs_buffer, &aprs_report);
+    aprs_size += Aprs_MakeExtCourseSpeed(aprs_buffer + aprs_size, (uint8_t)situation.track, (uint16_t)situation.speed);
 
     // Append comment for GPS altitude
     sprintf((char*)aprs_buffer + aprs_size, "A=%06i", (int)Meters2Feet(situation.altitude));

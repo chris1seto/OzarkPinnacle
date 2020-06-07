@@ -16,7 +16,7 @@ typedef struct
   uint32_t Timestamp;
 } AprsPositionReportT;
 
-const uint32_t AprsMakePosition(uint8_t* buffer, const AprsPositionReportT* report);
-const uint32_t AprsMakeExtCourseSpeed(uint8_t* buffer, const uint8_t course, const uint16_t speed);
+const uint32_t Aprs_MakePosition(uint8_t* buffer, const AprsPositionReportT* report);
+const uint32_t Aprs_MakeExtCourseSpeed(uint8_t* buffer, const uint8_t course, const uint16_t speed);
 
 #endif // !APRS_H

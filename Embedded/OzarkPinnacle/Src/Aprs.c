@@ -17,60 +17,63 @@
 #include <time.h>
 #include "Aprs.h"
 
+static void MakeTimeHms(uint8_t* buffer, const time_t timestamp);
+static void MakePositionCoordinates(uint8_t* buffer, const AprsPositionT* position);
+
 // APRS101, Page 34
 // 19 bytes
-static void AprsMakePositionCoordinates(uint8_t* buffer, const AprsPositionT* position)
+static void MakePositionCoordinates(uint8_t* buffer, const AprsPositionT* position)
 {
   // Get elements of lat
-  float latAbs = fabs(position->Lat);
-  float latWhole = floorf(latAbs);
-  float latMinutes = (latAbs - latWhole) * 60.0;
-  float latSeconds = (latMinutes - floorf(latMinutes)) * 100.0;
-  uint8_t latChar = (position->Lat > 0) ? 'N' : 'S';
+  float lat_abs = fabs(position->Lat);
+  float lat_whole = floorf(lat_abs);
+  float lat_minutes = (lat_abs - lat_whole) * 60.0;
+  float lat_seconds = (lat_minutes - floorf(lat_minutes)) * 100.0;
+  uint8_t lat_char = (position->Lat > 0) ? 'N' : 'S';
 
   // Get elements of lon
-  float lonAbs = fabs(position->Lon);
-  float lonWhole = floorf(lonAbs);
-  float lonMinutes = (lonAbs - lonWhole) * 60.0;
-  float lonSeconds = (lonMinutes - floorf(lonMinutes)) * 100.0;
-  uint8_t lonChar = (position->Lon > 0) ? 'E' : 'W';
+  float lon_abs = fabs(position->Lon);
+  float lon_whole = floorf(lon_abs);
+  float lon_minutes = (lon_abs - lon_whole) * 60.0;
+  float lon_seconds = (lon_minutes - floorf(lon_minutes)) * 100.0;
+  uint8_t lon_char = (position->Lon > 0) ? 'E' : 'W';
 
   // Format the buffer
   sprintf((char*)buffer, "%02lu%02lu.%02lu%c%c%03lu%02lu.%02lu%c%c", 
-    (uint32_t)latWhole,
-    (uint32_t)latMinutes,
-    (uint32_t)latSeconds,
-    latChar,
+    (uint32_t)lat_whole,
+    (uint32_t)lat_minutes,
+    (uint32_t)lat_seconds,
+    lat_char,
     position->SymbolTable,
-    (uint32_t)lonWhole,
-    (uint32_t)lonMinutes,
-    (uint32_t)lonSeconds,
-    lonChar,
+    (uint32_t)lon_whole,
+    (uint32_t)lon_minutes,
+    (uint32_t)lon_seconds,
+    lon_char,
     position->Symbol);
 }
 
 // APRS101, Page 32
 // 7 bytes
-static void AprsMakeTimeHms(uint8_t* buffer, const time_t timestamp)
+static void MakeTimeHms(uint8_t* buffer, const time_t timestamp)
 {
-  struct tm* timeStruct;
+  struct tm* time_struct;
 
   // Extract timestamp
-  timeStruct = gmtime(&timestamp);
+  time_struct = gmtime(&timestamp);
 
   // Check if we got a valid time back
-  if (timeStruct == NULL)
+  if (time_struct == NULL)
   {
     sprintf((char*)buffer, "000000h");
     return;
   }
 
   // Format buffer
-  sprintf((char*)buffer, "%02d%02d%02dh", timeStruct->tm_hour, timeStruct->tm_min, timeStruct->tm_sec);
+  sprintf((char*)buffer, "%02d%02d%02dh", time_struct->tm_hour, time_struct->tm_min, time_struct->tm_sec);
 }
 
 // APRS101, Page 32
-const uint32_t AprsMakePosition(uint8_t* buffer, const AprsPositionReportT* report)
+const uint32_t Aprs_MakePosition(uint8_t* buffer, const AprsPositionReportT* report)
 {
   uint32_t bufferPtr = 0;
 
@@ -84,19 +87,19 @@ const uint32_t AprsMakePosition(uint8_t* buffer, const AprsPositionReportT* repo
   }
   else
   {
-    AprsMakeTimeHms(buffer + bufferPtr, (time_t)report->Timestamp);
+    MakeTimeHms(buffer + bufferPtr, (time_t)report->Timestamp);
   }
   bufferPtr += 7;
 
   // Encode position
   // 19 Bytes
-  AprsMakePositionCoordinates(buffer + bufferPtr, &report->Position);
+  MakePositionCoordinates(buffer + bufferPtr, &report->Position);
   bufferPtr += 19;
 
   return bufferPtr;
 }
 
-const uint32_t AprsMakeExtCourseSpeed(uint8_t* buffer, const uint8_t course, const uint16_t speed)
+const uint32_t Aprs_MakeExtCourseSpeed(uint8_t* buffer, const uint8_t course, const uint16_t speed)
 {
   sprintf((char*)buffer, "%03d/%03d/", course, speed);
   return 8;

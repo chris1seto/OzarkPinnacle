@@ -59,7 +59,7 @@ void RadioTaskStart(void)
   // Create task
   xTaskCreate(RadioTask,
     "Radio",
-    300,
+    512,
     NULL,
     7,
     NULL);
@@ -90,7 +90,7 @@ static void Dra818AprsInit(void)
   vTaskDelay(100 / portTICK_PERIOD_MS);
 
   // Configure filter
-  Dra818_SetFilter(1, 0, 0);
+  Dra818_SetFilter(0, 1, 1);
 
   // Set PA off for now
   Dra818IoSetLowRfPower();
