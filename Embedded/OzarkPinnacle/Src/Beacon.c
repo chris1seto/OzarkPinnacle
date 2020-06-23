@@ -117,15 +117,15 @@ static void BeaconTask(void* pvParameters)
     }
 
     // Configure Ax25 frame
-    memcpy(beacon_packet.frame.Source, config->Aprs.Callsign, 6);
-    beacon_packet.frame.SourceSsid = config->Aprs.Ssid;
-    memcpy(beacon_packet.frame.Destination, "APRS  ", 6);
-    beacon_packet.frame.DestinationSsid = 0;
+    memcpy(beacon_packet.frame.source, config->Aprs.Callsign, 6);
+    beacon_packet.frame.source_ssid = config->Aprs.Ssid;
+    memcpy(beacon_packet.frame.destination, "APRS  ", 6);
+    beacon_packet.frame.destination_ssid = 0;
     memcpy(beacon_packet.path, config->Aprs.Path, 7);
-    beacon_packet.frame.PathLen = 7;
+    beacon_packet.frame.path_size = 7;
 
-    beacon_packet.frame.PreFlagCount = PREFLAG_COUNT;
-    beacon_packet.frame.PostFlagCount = POSTFLAG_COUNT;
+    beacon_packet.frame.pre_flag_count = PREFLAG_COUNT;
+    beacon_packet.frame.post_flag_count = POSTFLAG_COUNT;
 
     // Fill APRS report
     aprs_report.Timestamp = RtcGet();
@@ -149,7 +149,7 @@ static void BeaconTask(void* pvParameters)
 
     // Add the APRS report to the packet
     memcpy(beacon_packet.payload, aprs_buffer, aprs_size);
-    beacon_packet.frame.PayloadLength = aprs_size;
+    beacon_packet.frame.payload_size = aprs_size;
 
     // Enqueue the packet in the transmit buffer
     xQueueSendToBack(*tx_queue, &beacon_packet, 0);

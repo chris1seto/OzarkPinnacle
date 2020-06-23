@@ -9,7 +9,7 @@
 
 typedef struct
 {
-  Ax25FrameT frame;
+  Ax25Frame_t frame;
   uint8_t path[56];
   uint8_t payload[200];
   TickType_t expiration;

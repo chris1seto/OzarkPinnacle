@@ -215,7 +215,7 @@ static void ProcessMessageCommand(const uint8_t* pointer)
 	ConfigT* config = FlashConfigGetPtr();
 	QueueHandle_t* txQueue = Radio_GetTxQueue();
 	uint8_t payload[84];
-	uint8_t payloadPtr = 0;
+	uint8_t payload_pointer = 0;
 	uint8_t i;
 
 	// If we didn't get any queues, something is really wrong
@@ -235,45 +235,45 @@ static void ProcessMessageCommand(const uint8_t* pointer)
 	}
 	
 	// Fill out radio packet
-	memcpy(beaconPacket.frame.Source, config->Aprs.Callsign, 6);
-	beaconPacket.frame.SourceSsid = config->Aprs.Ssid;
-	memcpy(beaconPacket.frame.Destination, "APRS  ", 6);
-	beaconPacket.frame.DestinationSsid = 0;
+	memcpy(beaconPacket.frame.source, config->Aprs.Callsign, 6);
+	beaconPacket.frame.source_ssid = config->Aprs.Ssid;
+	memcpy(beaconPacket.frame.destination, "APRS  ", 6);
+	beaconPacket.frame.destination_ssid = 0;
 	memcpy(beaconPacket.path, config->Aprs.Path, 7);
-	beaconPacket.frame.PathLen = 7;
-	beaconPacket.frame.PreFlagCount = 25;
-	beaconPacket.frame.PostFlagCount = 25;
+	beaconPacket.frame.path_size = 7;
+	beaconPacket.frame.pre_flag_count = 25;
+	beaconPacket.frame.post_flag_count = 25;
 	
 	// APRS 1.0.1 page 71
-	payload[payloadPtr++] = ':';
+	payload[payload_pointer++] = ':';
 
 	// Copy in destination address
 	for (i = 0; i < 9; i++)
 	{
 		if (transport->DestinationCallsign[i] > 0)
 		{
-			payload[payloadPtr++] = transport->DestinationCallsign[i];
+			payload[payload_pointer++] = transport->DestinationCallsign[i];
 		}
 		else
 		{
-			payload[payloadPtr++] = ' ';
+			payload[payload_pointer++] = ' ';
 		}
 	}
 
-	payload[payloadPtr++] = ':';
+	payload[payload_pointer++] = ':';
 
-	memcpy(&payload[payloadPtr], transport->Message, transport->MessageLength);
-	payloadPtr += transport->MessageLength;
+	memcpy(&payload[payload_pointer], transport->Message, transport->MessageLength);
+	payload_pointer += transport->MessageLength;
 
-	payload[payloadPtr++] = '{';
+	payload[payload_pointer++] = '{';
 
 	// Format message number
-	snprintf((char*)&payload[payloadPtr], 5, "%lu", transport->MessageNumber);
-	payloadPtr += log10(transport->MessageNumber) + 1;
+	snprintf((char*)&payload[payload_pointer], 5, "%lu", transport->MessageNumber);
+	payload_pointer += log10(transport->MessageNumber) + 1;
 
 	// Copy in payload
-	memcpy(beaconPacket.payload, payload, payloadPtr);
-	beaconPacket.frame.PayloadLength = payloadPtr;
+	memcpy(beaconPacket.payload, payload, payload_pointer);
+	beaconPacket.frame.payload_size = payload_pointer;
 
 	// Enqueue the packet in the transmit buffer
 	xQueueSendToBackFromISR(*txQueue, &beaconPacket, 0);

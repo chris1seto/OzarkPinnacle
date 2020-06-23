@@ -115,18 +115,18 @@ static void RadioTask(void* pvParameters)
       continue;
     }
 
-    LOG_I(TAG, "[TX] %.*s", (int)packet_out.frame.PayloadLength, packet_out.payload);
+    LOG_I(TAG, "[TX] %.*s", (int)packet_out.frame.payload_size, packet_out.payload);
 
     // We have something to transmit, build and encode the packet
-    packet_out.frame.Path = packet_out.path;
-    packet_out.frame.Payload = packet_out.payload;
-    ax25_size = Ax25BuildUnPacket(&packet_out.frame, ax25_buffer);
+    packet_out.frame.path = packet_out.path;
+    packet_out.frame.payload = packet_out.payload;
+    ax25_size = Ax25_BuildUnPacket(&packet_out.frame, ax25_buffer);
 
     // Audio encoding
     encoded_audio_size = Afsk_HdlcEncode(ax25_buffer,
       ax25_size,
-      packet_out.frame.PreFlagCount,
-      ax25_size - packet_out.frame.PostFlagCount,
+      packet_out.frame.pre_flag_count,
+      ax25_size - packet_out.frame.post_flag_count,
       audio_out,
       AUDIO_BUFFER_SIZE
     );
