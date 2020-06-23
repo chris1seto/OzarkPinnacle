@@ -211,9 +211,9 @@ static void ProcessTestCommand(const uint8_t* pointer)
 static void ProcessMessageCommand(const uint8_t* pointer)
 {
 	struct MessageTransportT* transport = (struct MessageTransportT*)pointer;
-	RadioPacketT beaconPacket;
+	RadioPacket_t beaconPacket;
 	ConfigT* config = FlashConfigGetPtr();
-	QueueHandle_t* txQueue = RadioGetTxQueue();
+	QueueHandle_t* txQueue = Radio_GetTxQueue();
 	uint8_t payload[84];
 	uint8_t payloadPtr = 0;
 	uint8_t i;
@@ -235,14 +235,14 @@ static void ProcessMessageCommand(const uint8_t* pointer)
 	}
 	
 	// Fill out radio packet
-	memcpy(beaconPacket.Frame.Source, config->Aprs.Callsign, 6);
-	beaconPacket.Frame.SourceSsid = config->Aprs.Ssid;
-	memcpy(beaconPacket.Frame.Destination, "APRS  ", 6);
-	beaconPacket.Frame.DestinationSsid = 0;
-	memcpy(beaconPacket.Path, config->Aprs.Path, 7);
-	beaconPacket.Frame.PathLen = 7;
-	beaconPacket.Frame.PreFlagCount = 25;
-	beaconPacket.Frame.PostFlagCount = 25;
+	memcpy(beaconPacket.frame.Source, config->Aprs.Callsign, 6);
+	beaconPacket.frame.SourceSsid = config->Aprs.Ssid;
+	memcpy(beaconPacket.frame.Destination, "APRS  ", 6);
+	beaconPacket.frame.DestinationSsid = 0;
+	memcpy(beaconPacket.path, config->Aprs.Path, 7);
+	beaconPacket.frame.PathLen = 7;
+	beaconPacket.frame.PreFlagCount = 25;
+	beaconPacket.frame.PostFlagCount = 25;
 	
 	// APRS 1.0.1 page 71
 	payload[payloadPtr++] = ':';
@@ -272,8 +272,8 @@ static void ProcessMessageCommand(const uint8_t* pointer)
 	payloadPtr += log10(transport->MessageNumber) + 1;
 
 	// Copy in payload
-	memcpy(beaconPacket.Payload, payload, payloadPtr);
-	beaconPacket.Frame.PayloadLength = payloadPtr;
+	memcpy(beaconPacket.payload, payload, payloadPtr);
+	beaconPacket.frame.PayloadLength = payloadPtr;
 
 	// Enqueue the packet in the transmit buffer
 	xQueueSendToBackFromISR(*txQueue, &beaconPacket, 0);

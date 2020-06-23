@@ -138,29 +138,19 @@ UART_HandleTypeDef* Nmea0183_GetUartHandle(void)
   return &uart_handle;
 }
 
-uint8_t Nmea0183_Init(void)
+void Nmea0183_Init(void)
 {
   // Init RTOS queue
   nmea_message_queue = xQueueCreate(10, sizeof(GenericNmeaMessage_t));
-
-  if (nmea_message_queue == NULL)
-  {
-    return 0;
-  }
 
   QueueInit(&nmea_queue, nmea_buffer, NMEA_BUFFER_SIZE);
 
   // Start serial port
   InitUart();
-
-  return 1;
-}
-
-void Nmea0183_StartParser(void)
-{
+  
   // Start Task
   xTaskCreate(Nmea0183Task,
-    "Nmea0183ParserTask",
+    "NMEA183",
     1024,
     NULL,
     6,

@@ -32,10 +32,6 @@ static void BeaconTask(void* pvParameters);
 
 void Beacon_Init(void)
 {
-}
-
-void Beacon_StartTask(void)
-{
   // Create task
   xTaskCreate(BeaconTask,
     "Beacon",
@@ -69,7 +65,7 @@ static void BeaconTask(void* pvParameters)
   TickType_t last_task_time = 0;
   uint32_t aprs_size;
   AprsPositionReportT aprs_report;
-  RadioPacketT beacon_packet;
+  RadioPacket_t beacon_packet;
   uint32_t beacon_period;
   float temperature = 0;
   float pressure = 0;
@@ -80,7 +76,7 @@ static void BeaconTask(void* pvParameters)
   ConfigT* config = FlashConfigGetPtr();
 
   // Get the queues
-  tx_queue = RadioGetTxQueue();
+  tx_queue = Radio_GetTxQueue();
 
   // If we didn't get any queues, something is really wrong
   if (tx_queue == NULL)
@@ -121,15 +117,15 @@ static void BeaconTask(void* pvParameters)
     }
 
     // Configure Ax25 frame
-    memcpy(beacon_packet.Frame.Source, config->Aprs.Callsign, 6);
-    beacon_packet.Frame.SourceSsid = config->Aprs.Ssid;
-    memcpy(beacon_packet.Frame.Destination, "APRS  ", 6);
-    beacon_packet.Frame.DestinationSsid = 0;
-    memcpy(beacon_packet.Path, config->Aprs.Path, 7);
-    beacon_packet.Frame.PathLen = 7;
+    memcpy(beacon_packet.frame.Source, config->Aprs.Callsign, 6);
+    beacon_packet.frame.SourceSsid = config->Aprs.Ssid;
+    memcpy(beacon_packet.frame.Destination, "APRS  ", 6);
+    beacon_packet.frame.DestinationSsid = 0;
+    memcpy(beacon_packet.path, config->Aprs.Path, 7);
+    beacon_packet.frame.PathLen = 7;
 
-    beacon_packet.Frame.PreFlagCount = PREFLAG_COUNT;
-    beacon_packet.Frame.PostFlagCount = POSTFLAG_COUNT;
+    beacon_packet.frame.PreFlagCount = PREFLAG_COUNT;
+    beacon_packet.frame.PostFlagCount = POSTFLAG_COUNT;
 
     // Fill APRS report
     aprs_report.Timestamp = RtcGet();
@@ -152,8 +148,8 @@ static void BeaconTask(void* pvParameters)
     aprs_size += 35;
 
     // Add the APRS report to the packet
-    memcpy(beacon_packet.Payload, aprs_buffer, aprs_size);
-    beacon_packet.Frame.PayloadLength = aprs_size;
+    memcpy(beacon_packet.payload, aprs_buffer, aprs_size);
+    beacon_packet.frame.PayloadLength = aprs_size;
 
     // Enqueue the packet in the transmit buffer
     xQueueSendToBack(*tx_queue, &beacon_packet, 0);

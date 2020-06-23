@@ -17,8 +17,9 @@
 #include "time.h"
 #include "Radio.h"
 #include "Watchdog.h"
+#include "Log.h"
 
-// Message output queue
+// Message queue
 static QueueHandle_t tx_queue;
 static QueueHandle_t rx_queue;
 
@@ -31,44 +32,30 @@ static uint8_t ax25_buffer[AX25_BUFFER_SIZE];
 
 #define TX_RX_QUEUE_SIZE  10
 
-void RadioTask(void* pvParameters);
+static void RadioTask(void* pvParameters);
 static void Dra818AprsInit(void);
 
 #define PTT_DOWN_DELAY    50
 #define PTT_UP_DELAY      20
 
-const static char TAG[] = "RADIO";
+const static char* TAG = "RADIO";
 
-void RadioInit(void)
+void Radio_Init(void)
 {
   // Init queues
-  tx_queue = xQueueCreate(TX_RX_QUEUE_SIZE, sizeof(RadioPacketT));
-  rx_queue = xQueueCreate(TX_RX_QUEUE_SIZE, sizeof(RadioPacketT));
-}
-
-QueueHandle_t* RadioGetTxQueue(void)
-{
-  return &tx_queue;
-}
-
-QueueHandle_t* RadioGetRxQueue(void)
-{
-  return &rx_queue;
-}
-
-void RadioTaskStart(void)
-{
-  BaseType_t ret;
+  tx_queue = xQueueCreate(TX_RX_QUEUE_SIZE, sizeof(RadioPacket_t));
+  rx_queue = xQueueCreate(TX_RX_QUEUE_SIZE, sizeof(RadioPacket_t));
+  
+  // Init the radio
+  Dra818AprsInit();
   
   // Create task
-  ret = xTaskCreate(RadioTask,
+  xTaskCreate(RadioTask,
     TAG,
     2000,
     NULL,
     5,
     NULL);
-    
-  printf("%i\r\n", ret);
 }
 
 static void Dra818AprsInit(void)
@@ -78,22 +65,22 @@ static void Dra818AprsInit(void)
 
   // Wait for the module to init
   WatchdogFeed();
-  vTaskDelay(600 / portTICK_PERIOD_MS);
+  HAL_Delay(600);
 
   // Connect (to init the module?)
-  printf("Trying to init Dra818... ");
+  LOG_I(TAG, "Trying to init Dra818... ");
   while (!Dra818_Connect())
   {
-    printf("[No Response] ");
+    LOG_W(TAG, "* [No Response]");
     WatchdogFeed();
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    HAL_Delay(1000);
   }
-  printf("[OK!]\r\n");
+  LOG_I(TAG, "- [Radio Init OK!]");
 
   // Configure group
   Dra818_SetGroup(144.390, 144.390, "0000", "0000", 8);
   WatchdogFeed();
-  vTaskDelay(100 / portTICK_PERIOD_MS);
+  HAL_Delay(100);
 
   // Configure filter
   Dra818_SetFilter(0, 1, 1);
@@ -102,77 +89,76 @@ static void Dra818AprsInit(void)
   Dra818IoSetLowRfPower();
 }
 
+QueueHandle_t* Radio_GetTxQueue(void)
+{
+  return &tx_queue;
+}
+
+QueueHandle_t* Radio_GetRxQueue(void)
+{
+  return &rx_queue;
+}
+
 // Radio manager task
-void RadioTask(void* pvParameters)
+static void RadioTask(void* pvParameters)
 {
   uint32_t encoded_audio_size;
   uint32_t ax25_size;
-  TickType_t last_task_time = 0;
-  RadioPacketT packet_out;
-printf("Run\r\n");
-  // Init DRA radio module
-  Dra818AprsInit();
+  RadioPacket_t packet_out;
 
   // Airtime / radio management loop
   while (true)
   {
-    // Block until it's time to start
-    vTaskDelayUntil(&last_task_time, 10);
-
-    // Check if we have a packet to transmit
-    if (!xQueueIsQueueEmptyFromISR(tx_queue))
+    // Wait to get a packet
+    if (!xQueueReceive(tx_queue, &packet_out, portMAX_DELAY))
     {
-      // Get the packet
-      if (!xQueueReceive(tx_queue, &packet_out, 0))
-      {
-        continue;
-      }
-
-      printf("[TX] %.*s\r\n", (int)packet_out.Frame.PayloadLength, packet_out.Payload);
-
-      // We have something to transmit, build and encode the packet
-      packet_out.Frame.Path = packet_out.Path;
-      packet_out.Frame.Payload = packet_out.Payload;
-      ax25_size = Ax25BuildUnPacket(&packet_out.Frame, ax25_buffer);
-
-      // Audio encoding
-      encoded_audio_size = Afsk_HdlcEncode(ax25_buffer,
-        ax25_size,
-        packet_out.Frame.PreFlagCount,
-        ax25_size - packet_out.Frame.PostFlagCount,
-        audio_out,
-        AUDIO_BUFFER_SIZE
-      );
-
-      // If the encoded audio length is zero, the encode output buffer wasn't big enough to accomidate the entire payload
-      // It might be mission critical that this gets out in a worst case scenario
-      // So just transmit the entire buffer...
-      if (!encoded_audio_size)
-      {
-        encoded_audio_size = AUDIO_BUFFER_SIZE;
-      }
-
-      // Start xmit
-      LedOn(LED_2);
-      Dra818IoPttOn();
-      Dra818IoSetHighRfPower();
-
-      // Wait to play until after we PTT down
-      vTaskDelay(PTT_DOWN_DELAY / portTICK_PERIOD_MS);
-
-      // Play audio
-      AudioPlay(audio_out, encoded_audio_size);
-
-      // Block while we're transmitting
-      AudioOutWait(portMAX_DELAY);
-
-      // Wait a little longer before we PTT up
-      vTaskDelay(PTT_UP_DELAY / portTICK_PERIOD_MS);
-
-      // Stop Xmit
-      Dra818IoPttOff();
-      Dra818IoSetLowRfPower();
-      LedOff(LED_2);
+      continue;
     }
+
+    LOG_I(TAG, "[TX] %.*s", (int)packet_out.frame.PayloadLength, packet_out.payload);
+
+    // We have something to transmit, build and encode the packet
+    packet_out.frame.Path = packet_out.path;
+    packet_out.frame.Payload = packet_out.payload;
+    ax25_size = Ax25BuildUnPacket(&packet_out.frame, ax25_buffer);
+
+    // Audio encoding
+    encoded_audio_size = Afsk_HdlcEncode(ax25_buffer,
+      ax25_size,
+      packet_out.frame.PreFlagCount,
+      ax25_size - packet_out.frame.PostFlagCount,
+      audio_out,
+      AUDIO_BUFFER_SIZE
+    );
+
+    // If the encoded audio length is zero, the encode output buffer wasn't big enough to accomidate the entire payload
+    // It might be mission critical that this gets out in a worst case scenario
+    // So just transmit the entire buffer...
+    if (!encoded_audio_size)
+    {
+      encoded_audio_size = AUDIO_BUFFER_SIZE;
+    }
+
+    // Start xmit
+    LedOn(LED_2);
+    Dra818IoPttOn();
+    Dra818IoSetHighRfPower();
+
+    // Wait to play until after we PTT down
+    vTaskDelay(PTT_DOWN_DELAY / portTICK_PERIOD_MS);
+
+    // Play audio
+    AudioPlay(audio_out, encoded_audio_size);
+
+    // Block while we're transmitting
+    AudioOutWait(portMAX_DELAY);
+
+    // Wait a little longer before we PTT up
+    vTaskDelay(PTT_UP_DELAY / portTICK_PERIOD_MS);
+
+    // Stop Xmit
+    Dra818IoPttOff();
+    Dra818IoSetLowRfPower();
+    LedOff(LED_2);
   }
 }

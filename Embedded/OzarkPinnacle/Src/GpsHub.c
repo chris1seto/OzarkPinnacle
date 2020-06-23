@@ -12,6 +12,7 @@
 #include "UbloxNeo.h"
 #include "GpsHub.h"
 #include "Helpers.h"
+#include "Log.h"
 
 // Max difference between RTC and GPS time allowed in S
 #define MAX_TIME_DELTA      5
@@ -41,21 +42,15 @@ static QueueHandle_t situation_queue;
 
 static void GpsHubTask(void* pvParameters);
 
+static const char* TAG = "GPSHUB";
+
 void GpsHub_Init(void)
 {
   situation_queue = xQueueCreate(1, sizeof(SituationInfo_t));
 
-  if (situation_queue == NULL)
-  {
-    return;
-  }
-}
-
-void GpsHub_StartTask(void)
-{
   // Create task
   xTaskCreate(GpsHubTask,
-    "GpsHub",
+    TAG,
     1024,
     NULL,
     6,
@@ -95,7 +90,7 @@ static void HandleNewZda(const NmeaZda_t* zda)
   {
     // Set the new system time
     RtcSet(gps_time_stamp);
-    printf("Set RTC\r\n");
+    LOG_I(TAG, "RTC set!");
   }
 }
 

@@ -38,6 +38,7 @@
 #include "UbloxNeo.h"
 #include "Usb.h"
 #include "GpsHub.h"
+#include "Log.h"
 
 static void SystemClock_Config(void);
 void SystemIdle(void * pvParameters);
@@ -47,12 +48,15 @@ void vApplicationMallocFailedHook(void);
 void vApplicationIdleHook(void);
 void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName);
 
-#define SYSTEM_IDLE_DELAY  1000
+#define SYSTEM_IDLE_DELAY  100
+
+static const char* TAG = "MAIN";
 
 int main(void)
 {
   // Init HAL
   HAL_Init();
+  HAL_InitTick(0);
   
   // LED init
   LedInit();
@@ -68,12 +72,13 @@ int main(void)
   
   // Init retarget
   RetargetInit();
-  printf("%cBoard up!\r\n", 12);
+  printf("%c", 12);
+  LOG_I(TAG, "Board up!");
 
   // Verify clocks
   if (HAL_RCC_GetHCLKFreq() != 168000000)
   {
-    printf("Warning: sysClock freq does not match\r\n");
+    LOG_E(TAG, "SysClock freq does not match");
   }
 
   // Init config
@@ -99,9 +104,6 @@ int main(void)
   WatchdogFeed();
   Dra818_Init();
 
-  // Init beacon
-  Beacon_Init();
-
   // Init Audio Out
   AudioInit();
   
@@ -114,31 +116,21 @@ int main(void)
 
   // Init radio
   WatchdogFeed();
-  RadioInit();
+  Radio_Init();
+  
+  // Init beacon
+  Beacon_Init();
 
   // Start system idle
   xTaskCreate(SystemIdle,
     "IDLE",
-    1024,
+    512,
     NULL,
     tskIDLE_PRIORITY,
     NULL);
 
-  // Start nmea parser
-  Nmea0183_StartParser();
-  
-  // Start GPS hub
-  GpsHub_StartTask();
-  
-  // Start radio task
-  RadioTaskStart();
-
-  // Start beaconing
-  Beacon_StartTask();
-  
-  printf("Start\r\n");
-
   // Start RTOS kernal
+  LOG_I(TAG, "Start vTaskStartScheduler");
   vTaskStartScheduler();
 
   // Do nothing
@@ -151,8 +143,6 @@ void SystemIdle(void * pvParameters)
 {
   while (true)
   {
-    printf("*\r\n");
-    
     // Feed watchdog
     WatchdogFeed();
 
@@ -200,12 +190,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLP        = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ        = 7;
   
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    while (1)
-    {
-    }
-  }
+  HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
   // Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 clocks dividers
   RCC_ClkInitStruct.ClockType        = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
@@ -214,12 +199,7 @@ static void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider    = RCC_HCLK_DIV4;  
   RCC_ClkInitStruct.APB2CLKDivider    = RCC_HCLK_DIV2;
   
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
-  {
-    while (1)
-    {
-    }
-  }
+  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
 
   // Enable LSI for watchdog
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI | RCC_OSCILLATORTYPE_LSE;
@@ -227,12 +207,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.LSEState       = RCC_LSE_OFF;
   RCC_OscInitStruct.LSIState       = RCC_LSI_ON;
 
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    while (1)
-    {
-    }
-  }
+  HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
   // Connect HSE/25 to RTC
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
@@ -249,12 +224,12 @@ static void SystemClock_Config(void)
 
 void vApplicationMallocFailedHook( void )
 {
-  printf("vApplicationMallocFailedHook\r\n");
+  LOG_E(TAG, "vApplicationMallocFailedHook");
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 {
-  printf("vApplicationStackOverflowHook in %s\r\n", pcTaskName);
+  LOG_E(TAG, "vApplicationStackOverflowHook in %s", pcTaskName);
 }
 
 void vApplicationIdleHook( void )
@@ -263,7 +238,7 @@ void vApplicationIdleHook( void )
 
 void vAssertCalled(uint32_t ulLine, const char *pcFile)
 {
-  printf("vAssertCalled (Line %lu, File: %s)\r\n", ulLine, pcFile);
+  LOG_E(TAG, "vAssertCalled (Line %lu, File: %s)", ulLine, pcFile);
 }
 
 void vApplicationTickHook( void )

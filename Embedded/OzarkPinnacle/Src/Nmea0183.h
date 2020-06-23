@@ -76,8 +76,7 @@ typedef struct
   };
 } GenericNmeaMessage_t;
 
-uint8_t Nmea0183_Init(void);
-void Nmea0183_StartParser(void);
+void Nmea0183_Init(void);
 QueueHandle_t* Nmea0183_GetQueue(void);
 UART_HandleTypeDef* Nmea0183_GetUartHandle(void);
 

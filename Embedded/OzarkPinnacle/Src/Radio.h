@@ -1,5 +1,6 @@
 #ifndef RADIO_H
 #define RADIO_H
+
 #include "FreeRTOS.h"
 #include <stdint.h>
 #include "task.h"
@@ -8,15 +9,14 @@
 
 typedef struct
 {
-  Ax25FrameT Frame;
-  uint8_t Path[56];
-  uint8_t Payload[200];
-  TickType_t Expiration;
-} RadioPacketT;
+  Ax25FrameT frame;
+  uint8_t path[56];
+  uint8_t payload[200];
+  TickType_t expiration;
+} RadioPacket_t;
 
-void RadioInit(void);
-void RadioTaskStart(void);
-QueueHandle_t* RadioGetTxQueue(void);
-QueueHandle_t* RadioGetRxQueue(void);
+void Radio_Init(void);
+QueueHandle_t* Radio_GetTxQueue(void);
+QueueHandle_t* Radio_GetRxQueue(void);
 
-#endif // !RADIO_H
+#endif

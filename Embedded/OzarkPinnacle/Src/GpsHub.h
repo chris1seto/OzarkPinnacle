@@ -1,12 +1,9 @@
 #ifndef GPSHUB_H
 #define GPSHUB_H
 
-#include "FreeRTOS.h"
-#include "task.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "queue.h"
 
 typedef struct
 {
@@ -21,7 +18,6 @@ typedef struct
 } SituationInfo_t;
 
 void GpsHub_Init(void);
-void GpsHub_StartTask(void);
 bool GpsHub_GetSituation(SituationInfo_t* const situation);
 
 #endif
