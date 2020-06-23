@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stm32f4xx_hal.h>
-#include "Queuex.h"
+#include "QueueBuffer.h"
 #include "Helpers.h"
 #include "TokenIterate.h"
 #include "Nmea0183.h"
@@ -48,7 +48,7 @@ static volatile uint32_t dma_header = 0;
 // Nmea data queue
 #define NMEA_BUFFER_SIZE    1000
 static uint8_t nmea_buffer[NMEA_BUFFER_SIZE];
-static struct QueueT nmea_queue;
+static QueueBuffer_t nmea_queue;
 
 // Message output queue
 static QueueHandle_t nmea_message_queue;
@@ -143,7 +143,7 @@ void Nmea0183_Init(void)
   // Init RTOS queue
   nmea_message_queue = xQueueCreate(10, sizeof(GenericNmeaMessage_t));
 
-  QueueInit(&nmea_queue, nmea_buffer, NMEA_BUFFER_SIZE);
+  QueueBuffer_Init(&nmea_queue, nmea_buffer, NMEA_BUFFER_SIZE);
 
   // Start serial port
   InitUart();
@@ -189,16 +189,16 @@ static void CopyFromDma(void)
   if (endIndex < dma_header)
   {
     // Copy from the end of the dma buffer
-    QueueAppendBuffer(&nmea_queue, dma_buffer + dma_header, DMA_BUFFER_SIZE - dma_header);
+    QueueBuffer_AppendBuffer(&nmea_queue, dma_buffer + dma_header, DMA_BUFFER_SIZE - dma_header);
 
     // It has. We need to copy from the end of the circ buffer, then again from the start
     // Copy from the start of the dma buffer
-    QueueAppendBuffer(&nmea_queue, dma_buffer, endIndex);
+    QueueBuffer_AppendBuffer(&nmea_queue, dma_buffer, endIndex);
   }
   else
   {
     // Copy from the dma_header to the endindex
-    QueueAppendBuffer(&nmea_queue, dma_buffer + dma_header, endIndex - dma_header);
+    QueueBuffer_AppendBuffer(&nmea_queue, dma_buffer + dma_header, endIndex - dma_header);
   }
 
   // Relocate the DMA head to the end of where we just read
@@ -224,10 +224,10 @@ static void Nmea0183Task(void * pvParameters)
     CopyFromDma();
 
     // While there is data in the queue
-    while (parsePtr < QueueCount(&nmea_queue))
+    while (parsePtr < QueueBuffer_Count(&nmea_queue))
     {
       // Get the current ptr
-      workingByte = QueuePeek(&nmea_queue, parsePtr++);
+      workingByte = QueueBuffer_Peek(&nmea_queue, parsePtr++);
 
       // State machine parser
       switch(parser_state)
@@ -240,7 +240,7 @@ static void Nmea0183Task(void * pvParameters)
           }
 
           // Dequeue whatever we get at this point, header or not
-          QueueDequeqe(&nmea_queue, 1);
+          QueueBuffer_Dequeue(&nmea_queue, 1);
           parsePtr = 0;
           bufferPtr = 0;
           break;
@@ -276,7 +276,7 @@ static void Nmea0183Task(void * pvParameters)
           if (VerifyChecksum(frameChecksum, packet_buffer, bufferPtr))
           {
             // Dequeue the entire packet if success
-            QueueDequeqe(&nmea_queue, parsePtr);
+            QueueBuffer_Dequeue(&nmea_queue, parsePtr);
             parsePtr = 0;
 
             // Process sentence

@@ -13,6 +13,7 @@
 #include "GpsHub.h"
 #include "Helpers.h"
 #include "Log.h"
+#include "Ticks.h"
 
 // Max difference between RTC and GPS time allowed in S
 #define MAX_TIME_DELTA      5
@@ -107,7 +108,6 @@ static void GpsHubTask(void* pvParameters)
   TickType_t last_gga_time = 0;
   TickType_t last_zda_time = 0;
   TickType_t last_rmc_time = 0;
-  TickType_t time_now;
 
   InternalSituationInfo_t situation = {0};
   SituationInfo_t beacon_info = {0};
@@ -124,8 +124,6 @@ static void GpsHubTask(void* pvParameters)
   // Task loop
   while (true)
   {
-    time_now = xTaskGetTickCount();
-
     // Try to get a new message from NMEA as long as there is data to read
     if (!xQueueIsQueueEmptyFromISR(*nmea_queue))
     {
@@ -138,7 +136,7 @@ static void GpsHubTask(void* pvParameters)
           // Handle GGA message
           case NMEA_MESSAGE_TYPE_GGA:
             // Mark that we did get a packet
-            last_gga_time = time_now;
+            Ticks_Reset(&last_gga_time);
 
             // Ignore if we have no fix or if the fix is not present
             if (!IsAscii(msg.gga.fix) || msg.gga.fix <= '0')
@@ -154,7 +152,7 @@ static void GpsHubTask(void* pvParameters)
           // Handle RMC message
           case NMEA_MESSAGE_TYPE_RMC:
             // Mark that we did get a packet
-            last_rmc_time = time_now;
+            Ticks_Reset(&last_rmc_time);
 
             // Ignore if we have no fix
             if (msg.rmc.fix != 'A')
@@ -172,7 +170,7 @@ static void GpsHubTask(void* pvParameters)
           // Handle ZDA message
           case NMEA_MESSAGE_TYPE_ZDA:
             // Mark that we did get a packet
-            last_zda_time = time_now;
+            Ticks_Reset(&last_zda_time);
             HandleNewZda(&msg.zda);
             break;
 
@@ -184,21 +182,21 @@ static void GpsHubTask(void* pvParameters)
     }
 
     // Check for GPS timeouts on packets
-    if (time_now - last_check_for_timeout_time > GPS_RECONFIGURE_TIMEOUT)
+    if (Ticks_IsExpired(last_check_for_timeout_time, GPS_RECONFIGURE_TIMEOUT))
     {
-      last_check_for_timeout_time = time_now;
+      Ticks_Reset(&last_check_for_timeout_time);
 
-      if (time_now - last_gga_time > MAX_GPS_TIMEOUT)
+      if (Ticks_IsExpired(last_gga_time, MAX_GPS_TIMEOUT))
       {
         UbloxNeo_SetOutputRate("GGA", 1);
       }
 
-      if (time_now - last_rmc_time > MAX_GPS_TIMEOUT)
+      if (Ticks_IsExpired(last_rmc_time, MAX_GPS_TIMEOUT))
       {
         UbloxNeo_SetOutputRate("RMC", 1);
       }
 
-      if (time_now - last_zda_time > MAX_GPS_TIMEOUT)
+      if (Ticks_IsExpired(last_zda_time, MAX_GPS_TIMEOUT))
       {
         UbloxNeo_SetOutputRate("ZDA", 2);
       }

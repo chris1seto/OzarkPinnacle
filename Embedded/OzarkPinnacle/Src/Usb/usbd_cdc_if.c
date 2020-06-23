@@ -4,7 +4,7 @@
 #include "semphr.h"
 #include "usbd_cdc_if.h"
 #include "Usb.h"
-#include "Queuex.h"
+#include "QueueBuffer.h"
 #include "CrcCcitt.h"
 #include "Radio.h"
 #include "Config.h"
@@ -39,7 +39,7 @@ static uint8_t fakeDatetype = 0;
 
 #define PACKET_BUFFER_SIZE		500
 static uint8_t packetQueueBuffer[PACKET_BUFFER_SIZE];
-static struct QueueT packetQueue;
+static QueueBuffer_t packetQueue;
 static uint8_t xBuffer[100];
 
 #define PARSER_STATE_HEADER		0
@@ -105,7 +105,7 @@ static int8_t TEMPLATE_Init(void)
 {
 	USBD_CDC_SetTxBuffer(&USBD_Device, bufferTx, 0);
 	USBD_CDC_SetRxBuffer(&USBD_Device, bufferRx);
-	QueueInit(&packetQueue, packetQueueBuffer, PACKET_BUFFER_SIZE);
+	QueueBuffer_Init(&packetQueue, packetQueueBuffer, PACKET_BUFFER_SIZE);
 	return USBD_OK;
 }
 
@@ -167,7 +167,7 @@ static int8_t TEMPLATE_Control(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t TEMPLATE_Receive(uint8_t* Buf, uint32_t *Len)
 {
 	// Append to the buffer
-	QueueAppendBuffer(&packetQueue, Buf, *Len);
+	QueueBuffer_AppendBuffer(&packetQueue, Buf, *Len);
 
 	// Try to parse commands
 	UsbCommandParse();
@@ -284,10 +284,10 @@ static uint8_t UsbCommandParse(void)
 	uint8_t workingByte;
 
 	// While we have unprocessed data
-	while (parserIndex < QueueCount(&packetQueue))
+	while (parserIndex < QueueBuffer_Count(&packetQueue))
 	{
 		// Get the working byte
-		workingByte = QueuePeek(&packetQueue, parserIndex);
+		workingByte = QueueBuffer_Peek(&packetQueue, parserIndex);
 
 		// Packet parse state machine
 		switch(parserState)
@@ -301,7 +301,7 @@ static uint8_t UsbCommandParse(void)
 				}
 
 				// Consume this byte no matter what
-				QueueDequeqe(&packetQueue, 1);
+				QueueBuffer_Dequeue(&packetQueue, 1);
 				parserIndex = 0;
 				break;
 
@@ -364,7 +364,7 @@ static uint8_t UsbCommandParse(void)
 					workingCommand->Handler(xBuffer);
 
 					// Dequeue the entire packet
-					QueueDequeqe(&packetQueue, parserIndex);
+					QueueBuffer_Dequeue(&packetQueue, parserIndex);
 					parserIndex = 0;
 				}
 
