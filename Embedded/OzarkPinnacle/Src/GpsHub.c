@@ -58,7 +58,7 @@ void GpsHub_StartTask(void)
     "GpsHub",
     1024,
     NULL,
-    5,
+    6,
     NULL);
 }
 

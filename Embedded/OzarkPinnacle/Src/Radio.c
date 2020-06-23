@@ -35,7 +35,9 @@ void RadioTask(void* pvParameters);
 static void Dra818AprsInit(void);
 
 #define PTT_DOWN_DELAY    50
-#define PTT_UP_DELAY    20
+#define PTT_UP_DELAY      20
+
+const static char TAG[] = "RADIO";
 
 void RadioInit(void)
 {
@@ -56,13 +58,17 @@ QueueHandle_t* RadioGetRxQueue(void)
 
 void RadioTaskStart(void)
 {
+  BaseType_t ret;
+  
   // Create task
-  xTaskCreate(RadioTask,
-    "Radio",
-    512,
+  ret = xTaskCreate(RadioTask,
+    TAG,
+    2000,
     NULL,
-    7,
+    5,
     NULL);
+    
+  printf("%i\r\n", ret);
 }
 
 static void Dra818AprsInit(void)
@@ -103,12 +109,12 @@ void RadioTask(void* pvParameters)
   uint32_t ax25_size;
   TickType_t last_task_time = 0;
   RadioPacketT packet_out;
-
+printf("Run\r\n");
   // Init DRA radio module
   Dra818AprsInit();
 
   // Airtime / radio management loop
-  while (1)
+  while (true)
   {
     // Block until it's time to start
     vTaskDelayUntil(&last_task_time, 10);

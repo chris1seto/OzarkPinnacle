@@ -1,6 +1,0 @@
-file(GLOB_RECURSE SOURCES "./OS/*.c")
-add_library(LwIPSystem STATIC ${SOURCES})
-target_include_directories(LwIPSystem PUBLIC "${CMAKE_CURRENT_LIST_DIR}/")
-target_link_libraries(LwIPSystem Platform)
-target_link_libraries(LwIPSystem FreeRTOS)
-target_link_libraries(LwIPSystem lwipcore)

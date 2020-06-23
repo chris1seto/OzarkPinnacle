@@ -16,7 +16,7 @@
 
 // Sentence processors
 static void ParseGsa(const uint32_t size);
-static void Parsegga(const uint32_t size);
+static void ParseGga(const uint32_t size);
 static void ParseRmc(const uint32_t size);
 static void ParseZda(const uint32_t size);
 static void ProcessSentence(const uint32_t size);
@@ -67,7 +67,7 @@ static uint32_t parser_state = PARSE_STATE_HEADER;
 static NmeaProcessor_t processors[NMEA_PROCESSOR_COUNT] =
 {
   {NMEA_MESSAGE_TYPE_GSA, "GPGSA", ParseGsa, 0},
-  {NMEA_MESSAGE_TYPE_GGA, "GPGGA", Parsegga, 0},
+  {NMEA_MESSAGE_TYPE_GGA, "GPGGA", ParseGga, 0},
   {NMEA_MESSAGE_TYPE_RMC, "GPRMC", ParseRmc, 0},
   {NMEA_MESSAGE_TYPE_ZDA, "GPZDA", ParseZda, 0}
 };
@@ -85,7 +85,7 @@ static void InitUart(void)
   __GPIOB_CLK_ENABLE();
   __USART3_CLK_ENABLE();
   __DMA1_CLK_ENABLE();
-  
+
   // Configure GPIO
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull      = GPIO_NOPULL;
@@ -93,10 +93,10 @@ static void InitUart(void)
   GPIO_InitStruct.Pin       = GPIO_PIN_10 | GPIO_PIN_11;
   GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-  
+
   // Configure the USART peripheral
   uart_handle.Instance          = USART3;
-  uart_handle.Init.BaudRate     = 38400;
+  uart_handle.Init.BaudRate     = 9600;
   uart_handle.Init.WordLength   = UART_WORDLENGTH_8B;
   uart_handle.Init.StopBits     = UART_STOPBITS_1;
   uart_handle.Init.Parity       = UART_PARITY_NONE;
@@ -320,7 +320,7 @@ static void ProcessSentence(const uint32_t size)
 {
   uint32_t i;
 
-  // Try to match to a known processor 
+  // Try to match to a known processor
   for (i = 0; i < NMEA_PROCESSOR_COUNT; i++)
   {
     // Check if we have a match
@@ -396,9 +396,9 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPosition_t* pos)
 {
   uint8_t* token;
   uint32_t token_size;
-  
-  int deg = 0;
-  float min = 0;
+
+  int deg;
+  float min;
   uint8_t dir = '-';
 
   // Get the token for lat
@@ -423,7 +423,7 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPosition_t* pos)
   }
 
   pos->lat = (deg + (min / 60.0)) * ((dir == 'N') ? 1 : -1);
-  
+
   // Get the token for lon
   TokenIteratorForward(t, &token, &token_size);
 
@@ -437,7 +437,7 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPosition_t* pos)
   deg = atoil(token, 3);
 
   // Get minutes
-  min = atofl(token + 2, token_size - 3);
+  min = atofl(token + 3, token_size - 3);
 
   // Get direction
   if (!ExtractChar(t, &dir))
@@ -446,7 +446,7 @@ static uint8_t ExtractPosition(TokenIterateT* t, NmeaPosition_t* pos)
   }
 
   pos->lon = (deg + (min / 60.0)) * ((dir == 'E') ? 1 : -1);
-  
+
   return 1;
 }
 
@@ -544,13 +544,13 @@ static void ParseGsa(const uint32_t size)
 
     Where:
        GSA      Satellite status
-       A        Auto selection of 2D or 3D fix (M = manual) 
+       A        Auto selection of 2D or 3D fix (M = manual)
        3        3D fix - values include: 1 = no fix
                          2 = 2D fix
                          3 = 3D fix
-       04,05... PRNs of satellites used for fix (space for 12) 
-       2.5      PDOP (dilution of precision) 
-       1.3      Horizontal dilution of precision (HDOP) 
+       04,05... PRNs of satellites used for fix (space for 12)
+       2.5      PDOP (dilution of precision)
+       1.3      Horizontal dilution of precision (HDOP)
        2.1      Vertical dilution of precision (VDOP)
        *39      the checksum data, always begins with *
 
@@ -598,12 +598,12 @@ static void ParseRmc(const uint32_t size)
 
   // Date
   ExtractDate(&t, &msg.rmc.date);
-  
+
   // Try to queue it
   xQueueSendToBack(nmea_message_queue, &msg, 0);
 }
 
-static void Parsegga(const uint32_t size)
+static void ParseGga(const uint32_t size)
 {
   /*
     $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47

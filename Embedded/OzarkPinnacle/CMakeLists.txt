@@ -4,12 +4,12 @@ set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/ArmGccCortexM4HF.cmake")
 
 project(Stm32F4xxTemplate ASM C CXX)
 
-SET(LINKER_SCRIPT "${PROJECT_SOURCE_DIR}/Platform/STM32F407VGT6_FLASH.ld")
+SET(LINKER_SCRIPT "${PROJECT_SOURCE_DIR}/Platform/STM32F405RGT6_FLASH.ld")
 SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--gc-sections --specs=nosys.specs -T ${LINKER_SCRIPT}")
 
 add_definitions(-DUSE_FREERTOS -DUSE_HAL_DRIVER)
 add_compile_options(
-    -DSTM32F407xx
+    -DSTM32F405xx
     -fno-builtin
     -Wall
     -ffunction-sections
@@ -27,7 +27,6 @@ add_subdirectory(HalF4)
 add_subdirectory(FreeRTOS)
 add_subdirectory(Cmsis)
 add_subdirectory(Platform)
-add_subdirectory(LwIP)
 
 # Get project sources
 file(GLOB_RECURSE PROJECT_SOURCES "Src/*.c")
@@ -42,7 +41,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME} HalF4)
 target_link_libraries(${CMAKE_PROJECT_NAME} FreeRTOS)
 target_link_libraries(${CMAKE_PROJECT_NAME} Cmsis)
 target_link_libraries(${CMAKE_PROJECT_NAME} Platform)
-target_link_libraries(${CMAKE_PROJECT_NAME} lwipcore)
 
 # Generate ihex for a target
 function(generate_ihex target_name)

@@ -24,11 +24,10 @@
 static uint8_t aprs_buffer[PACKET_BUFFER_SIZE];
 
 static void BeaconTask(void* pvParameters);
-static TaskHandle_t beaconTaskHandle = NULL;
 
 #define FIRST_BEACON_OFFSET    500
 
-#define PREFLAG_COUNT    45
+#define PREFLAG_COUNT     45
 #define POSTFLAG_COUNT    35
 
 void Beacon_Init(void)
@@ -40,10 +39,10 @@ void Beacon_StartTask(void)
   // Create task
   xTaskCreate(BeaconTask,
     "Beacon",
-    1024,
+    512,
     NULL,
     3,
-    &beaconTaskHandle);
+    NULL);
 }
 
 #define METERS_TO_FEET  3.28084f

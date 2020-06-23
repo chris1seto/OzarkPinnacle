@@ -47,8 +47,7 @@ void vApplicationMallocFailedHook(void);
 void vApplicationIdleHook(void);
 void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName);
 
-#define SYSTEM_IDLE_DELAY  100
-static TaskHandle_t idleTaskHandle = NULL;
+#define SYSTEM_IDLE_DELAY  1000
 
 int main(void)
 {
@@ -80,7 +79,7 @@ int main(void)
   // Init config
   WatchdogFeed();
   FlashConfigInit();
-  
+
   // BSP init
   BspInit();
 
@@ -99,7 +98,7 @@ int main(void)
   Dra818IoInit();
   WatchdogFeed();
   Dra818_Init();
-  
+
   // Init beacon
   Beacon_Init();
 
@@ -119,11 +118,11 @@ int main(void)
 
   // Start system idle
   xTaskCreate(SystemIdle,
-    "SystemIdle",
-    128,
+    "IDLE",
+    1024,
     NULL,
     tskIDLE_PRIORITY,
-    &idleTaskHandle);
+    NULL);
 
   // Start nmea parser
   Nmea0183_StartParser();
@@ -136,6 +135,8 @@ int main(void)
 
   // Start beaconing
   Beacon_StartTask();
+  
+  printf("Start\r\n");
 
   // Start RTOS kernal
   vTaskStartScheduler();
@@ -150,6 +151,8 @@ void SystemIdle(void * pvParameters)
 {
   while (true)
   {
+    printf("*\r\n");
+    
     // Feed watchdog
     WatchdogFeed();
 
@@ -249,16 +252,16 @@ void vApplicationMallocFailedHook( void )
   printf("vApplicationMallocFailedHook\r\n");
 }
 
-void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName )
+void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 {
-  printf("vApplicationStackOverflowHook\r\n");
+  printf("vApplicationStackOverflowHook in %s\r\n", pcTaskName);
 }
 
 void vApplicationIdleHook( void )
 {
 }
 
-void vAssertCalled( uint32_t ulLine, const char *pcFile )
+void vAssertCalled(uint32_t ulLine, const char *pcFile)
 {
   printf("vAssertCalled (Line %lu, File: %s)\r\n", ulLine, pcFile);
 }
